@@ -28,10 +28,29 @@
 //Debugging (can be overridden)
 #define ROOTABLE false
 
-typedef struct Packet {
-    byte* payload;
-    int len;
-} Packet;
+// typedef struct Packet {
+//     byte* payload;
+//     int len;
+// } Packet;
+
+class Packet {
+    private:
+        byte* payload;
+        long len;
+        int data_len;
+    public:
+        // Packet(byte* payload, int len, int data_len);
+        Packet(byte type, int sender_id, int receiver_id, int source_id, byte* data, int data_len);
+        ~Packet();
+        byte getType();
+        byte getSourceId();
+        byte getSenderId();
+        byte getReceiverId();
+        int getPayload(byte* &payload);
+        int getData(byte* data);
+        int getLength();
+        int getDataLength();
+};
 
 class LoRaSENSE {
     private:
@@ -45,8 +64,9 @@ class LoRaSENSE {
 
         int hopCount;
         bool connected;
+        bool rreqSent = false;
 
-        Packet constructRreqPacket();
+        // Packet constructRreqPacket();
     public:
         LoRaSENSE(int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, long timeout);
         ~LoRaSENSE();
