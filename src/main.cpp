@@ -15,6 +15,7 @@
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 
 //Constants
+#define NODE_ID 0xAAAAAAAA
 #define WIFI_TIMEOUT 5000
 
 //Screen
@@ -25,7 +26,7 @@ const int wifi_arr_len = 1;
 char *ssid_arr[wifi_arr_len] = {"mirasbahay"};
 char *pwd_arr[wifi_arr_len] = {"carlopiadredcels"};
 
-class LoRaSENSE LoRaSENSE(ssid_arr, pwd_arr, wifi_arr_len, WIFI_TIMEOUT);
+class LoRaSENSE LoRaSENSE(NODE_ID, ssid_arr, pwd_arr, wifi_arr_len, WIFI_TIMEOUT);
 
 void onConnect() {
   display.clearDisplay();
