@@ -39,9 +39,11 @@ class Packet {
         long len;
         int data_len;
     public:
-        // Packet(byte* payload, int len, int data_len);
+        Packet(byte* payload, int len);
         Packet(byte type, int sender_id, int receiver_id, int source_id, byte* data, int data_len);
         ~Packet();
+        void printToSerial();
+
         byte getType();
         byte getSourceId();
         byte getSenderId();

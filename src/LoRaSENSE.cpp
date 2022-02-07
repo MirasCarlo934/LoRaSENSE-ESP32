@@ -24,10 +24,19 @@
 //915E6 for North America
 #define BAND 433E6
 
+Packet::Packet(byte* payload, int len) {
+    byte* newPayload = new byte[len];
+    for (int i = 0; i < len; ++i) {
+        newPayload[i] = payload[i];
+    }
+    this->payload = newPayload;
+    this->len = len;
+}
+
 Packet::Packet(byte type, int sender_id, int receiver_id, int source_id, byte* data, int data_len) {
     int len = 12 + data_len; // minimum header + data
-    byte* raw_payload = (byte*) malloc((len-2) * sizeof(byte*)); // excludes checksum
-    byte* payload = (byte*) malloc(len * sizeof(byte*));
+    byte* raw_payload = new byte[len-2]; // excludes checksum
+    byte* payload = new byte[len];
     int packet_id = rand();
 
     raw_payload[0] = (type << 5) & 0xFF;
@@ -82,14 +91,28 @@ Packet::Packet(byte type, int sender_id, int receiver_id, int source_id, byte* d
     uint16_t crc = crc16_CCITT(raw_payload, 6);
     payload[2] = (crc >> 8) & 0xFF;
     payload[3] = crc & 0xFF;
-    // this->payload = (byte**) malloc(sizeof(byte**));
     this->payload = payload;
     this->len = len;
     this->data_len = data_len;
 }
 
 Packet::~Packet() {
+    delete[] payload;
+}
 
+void Packet::printToSerial() {
+    Serial.println("---BEGIN PACKET---");
+    for (int i = 0; i < this->len; ++i) {
+        Serial.printf("%u ", this->payload[i]);
+        if ((i % 4) == 3) {
+            Serial.printf("\n");
+        }
+    }
+    Serial.println("----END PACKET----");
+}
+
+byte Packet::getType() {
+    return this->payload[0] >> 5;
 }
 
 int Packet::getPayload(byte* &payload) {
@@ -136,6 +159,8 @@ void LoRaSENSE::setup() {
 void LoRaSENSE::loop() {
     if (!connected) {
         connectToNetwork();
+    } else {
+
     }
 }
 
@@ -169,10 +194,6 @@ void LoRaSENSE::connectToNetwork() {
             LoRa.beginPacket();
             for (int i = 0; i < payload_len; ++i) {
                 LoRa.print(payload[i]);
-                // Serial.printf("%u ", payload[i]);
-                // if ((i % 4) == 3) {
-                //     Serial.printf("\n");
-                // }
             }
             LoRa.endPacket(true);
             rreqSent = true;
@@ -180,11 +201,14 @@ void LoRaSENSE::connectToNetwork() {
             int packetSize = LoRa.parsePacket();
             if (packetSize) {
                 int rssi = LoRa.packetRssi();
-                byte receivedPacket[packetSize];
+                byte packetBuf[packetSize];
                 for (int i = 0; LoRa.available(); ++i) {
-                    receivedPacket[i] = LoRa.read();
+                    packetBuf[i] = LoRa.read();
                 }
-                
+                Packet packet(packetBuf, packetSize);
+                if (packet.getType() == RREP_TYP) {
+                    packet.printToSerial();
+                }
             }
         }
     } else {
