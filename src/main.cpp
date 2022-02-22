@@ -1,3 +1,9 @@
+/*
+  NOTES
+  1. Modify NODE_ID (main.cpp)
+  2. Set ROOTABLE (LoRaSENSE.h)
+*/
+
 #include <Arduino.h>
 #include "LoRaSENSE.h"
 
@@ -15,7 +21,8 @@
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 
 //Constants
-#define NODE_ID 0xAAAAAAAA
+// #define NODE_ID 0xAAAAAAAA
+#define NODE_ID 0xBBBBBBBB
 #define WIFI_TIMEOUT 5000
 
 //Screen
@@ -32,7 +39,10 @@ void onConnect() {
   display.clearDisplay();
   display.setTextColor(WHITE);
   display.setCursor(0,0);
-  display.print(LoRaSENSE.getHopCount());
+  String idStr = String(LoRaSENSE.getId(), HEX);
+  idStr.toUpperCase();
+  String displayStr = idStr + " (" + String(LoRaSENSE.getHopCount()) + ")";
+  display.print(displayStr);
   display.display();
 }
 
@@ -65,7 +75,6 @@ void setup() {
   display.setCursor(0,10);
   display.print("Initialization OK!");
   display.display();
-  delay(3000);
 }
 
 void loop() {

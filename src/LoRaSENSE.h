@@ -26,6 +26,7 @@
 #define RSTA_TYP 0b111
 
 //Debugging (can be overridden)
+// #define ROOTABLE true
 #define ROOTABLE false
 
 // typedef struct Packet {
@@ -45,9 +46,9 @@ class Packet {
         void printToSerial();
 
         byte getType();
-        byte getSourceId();
-        byte getSenderId();
-        byte getReceiverId();
+        int getSenderId();
+        int getSourceId();
+        int getReceiverId();
         int getPayload(byte* &payload);
         int getData(byte* data);
         int getLength();
@@ -77,6 +78,7 @@ class LoRaSENSE {
         void connectToNetwork();
 
         void setOnConnect(void funcOnConnect());
+        int getId();
         int getHopCount();
         bool isConnected();
 };

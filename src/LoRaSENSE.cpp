@@ -31,10 +31,15 @@ Packet::Packet(byte* payload, int len) {
     }
     this->payload = newPayload;
     this->len = len;
+    if (getType() == RREQ_TYP || getType() == RERR_TYP || getType() == DACK_TYP || getType() == NACK_TYP) {
+        this->data_len = 0;
+    } else {
+        this->data_len = this->len - 20;
+    }
 }
 
 Packet::Packet(byte type, int sender_id, int receiver_id, int source_id, byte* data, int data_len) {
-    int len = 12 + data_len; // minimum header + data
+    int len = 20 + data_len; // minimum header + data
     byte* raw_payload = new byte[len-2]; // excludes checksum
     byte* payload = new byte[len];
     int packet_id = rand();
@@ -59,7 +64,7 @@ Packet::Packet(byte type, int sender_id, int receiver_id, int source_id, byte* d
     payload[9] = (sender_id >> 16) & 0xFF;
     payload[10] = (sender_id >> 8) & 0xFF;
     payload[11] = sender_id & 0xFF;
-    if (type != RREQ_TYP) {
+    if (type != RREQ_TYP && type != RERR_TYP) {
         raw_payload[10] = (receiver_id >> 24) & 0xFF;
         raw_payload[11] = (receiver_id >> 16) & 0xFF;
         raw_payload[12] = (receiver_id >> 8) & 0xFF;
@@ -120,6 +125,15 @@ int Packet::getPayload(byte* &payload) {
     return this->len;
 }
 
+int Packet::getSenderId() {
+    int senderId = 0;
+    senderId = senderId | (this->payload[8] << 24);
+    senderId = senderId | (this->payload[9] << 16);
+    senderId = senderId | (this->payload[10] << 8);
+    senderId = senderId | this->payload[11];
+    return senderId;
+}
+
 int Packet::getLength() {
     return this->len;
 }
@@ -160,13 +174,42 @@ void LoRaSENSE::loop() {
     if (!connected) {
         connectToNetwork();
     } else {
-
+        // Continuous listen for packets
+        // TODO: add CRC!!!
+        int packetSize = LoRa.parsePacket();
+        if (packetSize) {
+            Serial.print("Packet received...");
+            int rssi = LoRa.packetRssi();
+            byte packetBuf[packetSize];
+            for (int i = 0; LoRa.available(); ++i) {
+                packetBuf[i] = LoRa.read();
+            }
+            Packet packet(packetBuf, packetSize);
+            if (packet.getType() == RREQ_TYP) {
+                Serial.println("RREQ");
+                byte data[4]; // hop count
+                data[0] = (hopCount >> 24) & 0xFF;
+                data[1] = (hopCount >> 16) & 0xFF;
+                data[2] = (hopCount >> 8) & 0xFF;
+                data[3] = hopCount & 0xFF;
+                Packet rrep(RREP_TYP, this->id, packet.getSenderId(), this->id, data, 4);
+                LoRa.beginPacket();
+                byte* payload;
+                int payload_len = rrep.getPayload(payload);
+                for (int i = 0; i < payload_len; ++i) {
+                    LoRa.write(payload[i]);
+                    Serial.printf("%u ", payload[i]);
+                }
+                LoRa.endPacket();
+                Serial.println("RREP packet sent");
+                delay(1000);
+            }
+        }
     }
 }
 
 // TODO: this can be simplified
 void LoRaSENSE::connectToNetwork() {
-    Serial.println(ROOTABLE);
     if (ROOTABLE) {
         for (int i = 0; i < wifi_arr_len; ++i) {
             Serial.printf("Connecting to Wi-Fi router \"%s\"", ssid_arr[i]);
@@ -193,9 +236,10 @@ void LoRaSENSE::connectToNetwork() {
             int payload_len = rreq.getPayload(payload);
             LoRa.beginPacket();
             for (int i = 0; i < payload_len; ++i) {
-                LoRa.print(payload[i]);
+                LoRa.write(payload[i]);
             }
-            LoRa.endPacket(true);
+            LoRa.endPacket();
+            Serial.println("RREQ packet sent!");
             rreqSent = true;
         } else { //Wait for response
             int packetSize = LoRa.parsePacket();
@@ -207,7 +251,7 @@ void LoRaSENSE::connectToNetwork() {
                 }
                 Packet packet(packetBuf, packetSize);
                 if (packet.getType() == RREP_TYP) {
-                    packet.printToSerial();
+                    // TODO: continue here
                 }
             }
         }
@@ -221,6 +265,10 @@ void LoRaSENSE::connectToNetwork() {
 
 void LoRaSENSE::setOnConnect(void funcOnConnect()) {
     this->funcOnConnect = std::bind(funcOnConnect);
+}
+
+int LoRaSENSE::getId() {
+    return id;
 }
 
 int LoRaSENSE::getHopCount() {
