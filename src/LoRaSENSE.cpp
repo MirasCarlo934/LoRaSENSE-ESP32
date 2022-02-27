@@ -205,6 +205,9 @@ void LoRaSENSE::setup() {
 void LoRaSENSE::loop() {
     if (!connected && !rreqSent) {
         connectToNetwork();
+    } else if (!connected && ((millis() - lastRreqSent) > RREQ_TIMEOUT)) {
+        rreqSent = false;
+        connectToLoRa();
     } else {
         // Continuous listen for packets
         // TODO: add CRC!!!
@@ -239,6 +242,7 @@ void LoRaSENSE::loop() {
                 if (hopCount < (this->hopCount - 1) && rssi >= -90) {
                     this->parent_id = sourceId;
                     this->hopCount = hopCount + 1;
+                    connected = true;
                     Serial.printf("New parent '%s'\n", String(sourceId, HEX));
                     Serial.printf("Hop count: %i", this->hopCount);
                     funcOnConnect();
@@ -268,18 +272,24 @@ void LoRaSENSE::connectToNetwork() {
     }
     if (WiFi.status() != WL_CONNECTED) {
         //Connect to LoRa mesh
-        Serial.println("No valid Wi-Fi router in range. Connecting to LoRa mesh");
-        WiFi.mode(WIFI_OFF);
-        Packet rreq(RREQ_TYP, id, 0, 0, nullptr, 0);
-        rreq.send();
-        Serial.println("RREQ packet sent!");
-        rreqSent = true;
+        Serial.println("No valid Wi-Fi router in range.");
+        connectToLoRa();
     } else {
         //Node is root
         hopCount = 0;
         connected = true;
         funcOnConnect();
     }
+}
+
+void LoRaSENSE::connectToLoRa() {
+    WiFi.mode(WIFI_OFF);
+    Serial.println("Connecting to LoRa mesh...");
+    Packet rreq(RREQ_TYP, id, 0, 0, nullptr, 0);
+    rreq.send();
+    Serial.println("RREQ packet sent!");
+    rreqSent = true;
+    lastRreqSent = millis();
 }
 
 void LoRaSENSE::setOnConnect(void funcOnConnect()) {

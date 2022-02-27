@@ -25,6 +25,9 @@
 #define NACK_TYP 0b101
 #define RSTA_TYP 0b111
 
+#define WIFI_TIMEOUT 5000
+#define RREQ_TIMEOUT 5000
+
 //Debugging (can be overridden)
 // #define ROOTABLE true
 #define ROOTABLE false
@@ -64,6 +67,7 @@ class LoRaSENSE {
         int hopCount = 99999999;
         bool connected;
         bool rreqSent = false;
+        unsigned long lastRreqSent;
 
         // Packet constructRreqPacket();
     public:
@@ -72,6 +76,7 @@ class LoRaSENSE {
         void setup();
         void loop();
         void connectToNetwork();
+        void connectToLoRa();
 
         void setOnConnect(void funcOnConnect());
         int getId();

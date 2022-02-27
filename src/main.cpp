@@ -23,7 +23,6 @@
 //Constants
 // #define NODE_ID 0xAAAAAAAA
 #define NODE_ID 0xBBBBBBBB
-#define WIFI_TIMEOUT 5000
 
 //Screen
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
