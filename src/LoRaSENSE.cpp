@@ -107,7 +107,7 @@ Packet::Packet(byte type, int sender_id, int receiver_id, int source_id, byte* d
 }
 
 Packet::~Packet() {
-    delete[] payload;
+    delete payload;
 }
 
 void Packet::send() {
@@ -133,9 +133,18 @@ byte Packet::getType() {
     return this->payload[0] >> 5;
 }
 
+// TODO: COPY nalang
 int Packet::getPayload(byte* &payload) {
     payload = this->payload;
     return this->len;
+}
+
+int Packet::getData(byte* &data) {
+    data = new byte[data_len];
+    for (int i = 0; i < data_len; ++i) {
+        data[i] = payload[i+20];
+    }
+    return data_len;
 }
 
 int Packet::getSenderId() {
@@ -145,6 +154,15 @@ int Packet::getSenderId() {
     senderId = senderId | (this->payload[10] << 8);
     senderId = senderId | this->payload[11];
     return senderId;
+}
+
+int Packet::getSourceId() {
+    int sourceId = 0;
+    sourceId = sourceId | (this->payload[16] << 24);
+    sourceId = sourceId | (this->payload[17] << 16);
+    sourceId = sourceId | (this->payload[18] << 8);
+    sourceId = sourceId | this->payload[19];
+    return sourceId;
 }
 
 int Packet::getLength() {
@@ -160,7 +178,8 @@ LoRaSENSE::LoRaSENSE(int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, 
 }
 
 LoRaSENSE::~LoRaSENSE() {
-
+    delete[] ssid_arr;
+    delete[] pwd_arr;
 }
 
 void LoRaSENSE::setup() {
@@ -184,7 +203,7 @@ void LoRaSENSE::setup() {
 }
 
 void LoRaSENSE::loop() {
-    if (!connected) {
+    if (!connected && !rreqSent) {
         connectToNetwork();
     } else {
         // Continuous listen for packets
@@ -210,6 +229,21 @@ void LoRaSENSE::loop() {
                 Serial.println("RREP packet sent");
                 delay(1000);
             }
+            else if (packet.getType() == RREP_TYP) {
+                Serial.println("RREP");
+                int sourceId = packet.getSourceId();
+                byte* data;
+                int data_len = packet.getData(data);
+                int hopCount = 0;
+                hopCount = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
+                if (hopCount < (this->hopCount - 1) && rssi >= -90) {
+                    this->parent_id = sourceId;
+                    this->hopCount = hopCount + 1;
+                    Serial.printf("New parent '%s'\n", String(sourceId, HEX));
+                    Serial.printf("Hop count: %i", this->hopCount);
+                    funcOnConnect();
+                }
+            }
         }
     }
 }
@@ -234,27 +268,12 @@ void LoRaSENSE::connectToNetwork() {
     }
     if (WiFi.status() != WL_CONNECTED) {
         //Connect to LoRa mesh
-        if (!rreqSent) { //Send RREQ packet
-            Serial.println("No valid Wi-Fi router in range. Connecting to LoRa mesh");
-            WiFi.mode(WIFI_OFF);
-            Packet rreq(RREQ_TYP, id, 0, 0, nullptr, 0);
-            rreq.send();
-            Serial.println("RREQ packet sent!");
-            rreqSent = true;
-        } else { //Wait for response
-            int packetSize = LoRa.parsePacket();
-            if (packetSize) {
-                int rssi = LoRa.packetRssi();
-                byte packetBuf[packetSize];
-                for (int i = 0; LoRa.available(); ++i) {
-                    packetBuf[i] = LoRa.read();
-                }
-                Packet packet(packetBuf, packetSize);
-                if (packet.getType() == RREP_TYP) {
-                    // TODO: continue here
-                }
-            }
-        }
+        Serial.println("No valid Wi-Fi router in range. Connecting to LoRa mesh");
+        WiFi.mode(WIFI_OFF);
+        Packet rreq(RREQ_TYP, id, 0, 0, nullptr, 0);
+        rreq.send();
+        Serial.println("RREQ packet sent!");
+        rreqSent = true;
     } else {
         //Node is root
         hopCount = 0;

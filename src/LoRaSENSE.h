@@ -26,13 +26,8 @@
 #define RSTA_TYP 0b111
 
 //Debugging (can be overridden)
-#define ROOTABLE true
-// #define ROOTABLE false
-
-// typedef struct Packet {
-//     byte* payload;
-//     int len;
-// } Packet;
+// #define ROOTABLE true
+#define ROOTABLE false
 
 class Packet {
     private:
@@ -51,7 +46,7 @@ class Packet {
         int getSourceId();
         int getReceiverId();
         int getPayload(byte* &payload);
-        int getData(byte* data);
+        int getData(byte* &data);
         int getLength();
         int getDataLength();
 };
@@ -66,7 +61,7 @@ class LoRaSENSE {
         long timeout;
         std::function<void()> funcOnConnect;
 
-        int hopCount;
+        int hopCount = 99999999;
         bool connected;
         bool rreqSent = false;
 
