@@ -26,8 +26,8 @@
 #define RSTA_TYP 0b111
 
 //Debugging (can be overridden)
-// #define ROOTABLE true
-#define ROOTABLE false
+#define ROOTABLE true
+// #define ROOTABLE false
 
 // typedef struct Packet {
 //     byte* payload;

@@ -206,14 +206,7 @@ void LoRaSENSE::loop() {
                 data[2] = (hopCount >> 8) & 0xFF;
                 data[3] = hopCount & 0xFF;
                 Packet rrep(RREP_TYP, this->id, packet.getSenderId(), this->id, data, 4);
-                LoRa.beginPacket();
-                byte* payload;
-                int payload_len = rrep.getPayload(payload);
-                for (int i = 0; i < payload_len; ++i) {
-                    LoRa.write(payload[i]);
-                    Serial.printf("%u ", payload[i]);
-                }
-                LoRa.endPacket();
+                rrep.send();
                 Serial.println("RREP packet sent");
                 delay(1000);
             }
@@ -246,13 +239,6 @@ void LoRaSENSE::connectToNetwork() {
             WiFi.mode(WIFI_OFF);
             Packet rreq(RREQ_TYP, id, 0, 0, nullptr, 0);
             rreq.send();
-            // byte* payload;
-            // int payload_len = rreq.getPayload(payload);
-            // LoRa.beginPacket();
-            // for (int i = 0; i < payload_len; ++i) {
-            //     LoRa.write(payload[i]);
-            // }
-            // LoRa.endPacket();
             Serial.println("RREQ packet sent!");
             rreqSent = true;
         } else { //Wait for response

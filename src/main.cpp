@@ -21,8 +21,8 @@
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 
 //Constants
-// #define NODE_ID 0xAAAAAAAA
-#define NODE_ID 0xBBBBBBBB
+#define NODE_ID 0xAAAAAAAA
+// #define NODE_ID 0xBBBBBBBB
 #define WIFI_TIMEOUT 5000
 
 //Screen
