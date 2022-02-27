@@ -39,7 +39,12 @@ Packet::Packet(byte* payload, int len) {
 }
 
 Packet::Packet(byte type, int sender_id, int receiver_id, int source_id, byte* data, int data_len) {
-    int len = 20 + data_len; // minimum header + data
+    int len = 12 + data_len; // minimum header (RREQ/RERR) + data
+    if (type == DACK_TYP || type == NACK_TYP) {
+        len += 4;
+    } else {
+        len += 8;
+    }
     byte* raw_payload = new byte[len-2]; // excludes checksum
     byte* payload = new byte[len];
     int packet_id = rand();
@@ -103,6 +108,14 @@ Packet::Packet(byte type, int sender_id, int receiver_id, int source_id, byte* d
 
 Packet::~Packet() {
     delete[] payload;
+}
+
+void Packet::send() {
+    LoRa.beginPacket();
+    for (int i = 0; i < len; ++i) {
+        LoRa.write(payload[i]);
+    }
+    LoRa.endPacket();
 }
 
 void Packet::printToSerial() {
@@ -232,13 +245,14 @@ void LoRaSENSE::connectToNetwork() {
             Serial.println("No valid Wi-Fi router in range. Connecting to LoRa mesh");
             WiFi.mode(WIFI_OFF);
             Packet rreq(RREQ_TYP, id, 0, 0, nullptr, 0);
-            byte* payload;
-            int payload_len = rreq.getPayload(payload);
-            LoRa.beginPacket();
-            for (int i = 0; i < payload_len; ++i) {
-                LoRa.write(payload[i]);
-            }
-            LoRa.endPacket();
+            rreq.send();
+            // byte* payload;
+            // int payload_len = rreq.getPayload(payload);
+            // LoRa.beginPacket();
+            // for (int i = 0; i < payload_len; ++i) {
+            //     LoRa.write(payload[i]);
+            // }
+            // LoRa.endPacket();
             Serial.println("RREQ packet sent!");
             rreqSent = true;
         } else { //Wait for response

@@ -43,6 +43,7 @@ class Packet {
         Packet(byte* payload, int len);
         Packet(byte type, int sender_id, int receiver_id, int source_id, byte* data, int data_len);
         ~Packet();
+        void send();
         void printToSerial();
 
         byte getType();
