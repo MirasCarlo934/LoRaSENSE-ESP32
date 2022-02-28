@@ -271,9 +271,9 @@ void LoRaSENSE::setup() {
 
 void LoRaSENSE::loop() {
     // TESTING
-        if (((millis() - lastDataSent) > DATA_SEND)) {
+        if (connected && ((millis() - lastDataSent) > DATA_SEND)) {
             long long* data = new long long[5];
-            data[0] = rand();  // pm2.5
+            data[0] = rand();   // pm2.5
             data[1] = rand();   // pm10
             data[2] = rand();   // co
             data[3] = rand();   // temp
@@ -326,7 +326,7 @@ void LoRaSENSE::loop() {
                     this->hopCount = hopCount + 1;
                     connected = true;
                     Serial.printf("New parent '%s'\n", String(sourceId, HEX));
-                    Serial.printf("Hop count: %i", this->hopCount);
+                    Serial.printf("Hop count: %i\n", this->hopCount);
                     funcOnConnect();
                 }
             } else if (packet.getType() == DATA_TYP) {
@@ -339,7 +339,7 @@ void LoRaSENSE::loop() {
             }
         }
         // Send packets from packet queue
-        if (((millis() - lastDataSent) > DATA_SEND) && !packetQueue.isEmpty()) {
+        if (connected && !packetQueue.isEmpty() && ((millis() - lastDataSent) > DATA_SEND)) {
             Serial.printf("Sending data packets...%i packet/s in queue\n", packetQueue.getSize());
             lastDataSent = millis();
             while (!packetQueue.isEmpty()) {
