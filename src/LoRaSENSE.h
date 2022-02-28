@@ -2,7 +2,6 @@
 #define LORASENSE_H
 
 #include <Arduino.h>
-#include <ArduinoJson.h>
 
 //Libraries for LoRa
 #include <SPI.h>
