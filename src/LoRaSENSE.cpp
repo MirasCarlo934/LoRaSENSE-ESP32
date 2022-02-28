@@ -24,6 +24,57 @@
 //915E6 for North America
 #define BAND 433E6
 
+PacketQueueNode::PacketQueueNode(Packet* packet) {
+    this->next = nullptr;
+    this->packet = packet;
+}
+
+PacketQueue::PacketQueue() {
+    head = nullptr;
+}
+
+int PacketQueue::getSize() {
+    int size = 0;
+    PacketQueueNode* node = this->head;
+    while (node != nullptr) {
+        node = node->next;
+        ++size;
+    }
+    return size;
+}
+
+bool PacketQueue::isEmpty() {
+    if (this->head == nullptr) return true;
+    else return false;
+}
+
+void PacketQueue::push(Packet* packet) {
+    PacketQueueNode* newNode = new PacketQueueNode(packet);
+    if (getSize() == 0) {
+        this->head = newNode;
+    } else {
+        PacketQueueNode* node = this->head;
+        while (node->next != nullptr) {
+            node = node->next;
+        }
+        node->next = newNode;
+    }
+}
+
+Packet* PacketQueue::popFront() {
+    if (this->head != nullptr) {
+        Packet* packet = this->head->packet;
+        this->head = this->head->next;
+        return packet;
+    } else {
+        throw 0;
+    }
+}
+
+Packet::Packet() {
+
+}
+
 Packet::Packet(byte* payload, int len) {
     byte* newPayload = new byte[len];
     for (int i = 0; i < len; ++i) {
@@ -133,7 +184,16 @@ byte Packet::getType() {
     return this->payload[0] >> 5;
 }
 
-// TODO: COPY nalang
+int Packet::getPacketId() {
+    int packetId = 0;
+    packetId = packetId | (this->payload[4] << 24);
+    packetId = packetId | (this->payload[5] << 16);
+    packetId = packetId | (this->payload[6] << 8);
+    packetId = packetId | this->payload[7];
+    return packetId;
+}
+
+// TODO: COPY nalang instead of REFERENCE
 int Packet::getPayload(byte* &payload) {
     payload = this->payload;
     return this->len;
@@ -169,12 +229,18 @@ int Packet::getLength() {
     return this->len;
 }
 
-LoRaSENSE::LoRaSENSE(int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, long timeout) {
+
+
+
+
+
+LoRaSENSE::LoRaSENSE(String thingsboard_access_token, int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, long timeout) {
+    this->thingsboard_access_token = thingsboard_access_token;
     this->id = id;
     this->ssid_arr = ssid_arr;
     this->pwd_arr = pwd_arr;
     this->wifi_arr_len = wifi_arr_len;
-    this->timeout = timeout;
+    this->wifiTimeout = timeout;
 }
 
 LoRaSENSE::~LoRaSENSE() {
@@ -200,17 +266,55 @@ void LoRaSENSE::setup() {
 
     //Setup randomizer
     srand(time(0));
+    rand();
 }
 
 void LoRaSENSE::loop() {
+    // TESTING
+        if (((millis() - lastDataSent) > DATA_SEND)) {
+            // const int init_packet_queue_size = 1;
+            // Packet packet_queue_arr[init_packet_queue_size];
+            // Vector<Packet> queue(packet_queue_arr);
+            long* data = new long[5];
+            data[0] = 100;
+            data[1] = 55;
+            data[2] = 34;
+            data[3] = 30;
+            data[4] = 45;
+            Packet* dataPkt = new Packet(DATA_TYP, this->id, this->id, this->id, reinterpret_cast<byte*>(data), sizeof(long)*5);
+            Serial.printf("Adding test data packet %i to queue...\n", dataPkt->getPacketId());
+            long data2[5];
+            data2[0] = 100;
+            data2[1] = 53335;
+            data2[2] = 344;
+            data2[3] = 30;
+            data2[4] = 312345;
+            Packet* dataPkt2 = new Packet(DATA_TYP, this->id, this->id, this->id, reinterpret_cast<byte*>(data2), sizeof(long)*5);
+            // Serial.printf("packet id (before): %i\n", dataPkt->getPacketId());
+            packetQueue.push(dataPkt);
+            packetQueue.push(dataPkt2);
+            // Serial.printf("before: %i\n", packetQueue.getSize());
+            // Packet* p1 = packetQueue.popFront();
+            // Packet p2 = packetQueue.popFront();
+            // Serial.printf("after: %i\n", packetQueue.getSize());
+            // Serial.printf("0: %i\n", packetQueue.popFront().getPacketId());
+            // Serial.printf("1: %i\n", packetQueue.popFront().getPacketId());
+            // Serial.printf("%i\n", packetQueue.getSize());
+            // Serial.println("DONE");
+            // delay(5000);
+        }
+    //
+
+    // TODO: this if-then-else block can be simplified
     if (!connected && !rreqSent) {
         connectToNetwork();
     } else if (!connected && ((millis() - lastRreqSent) > RREQ_TIMEOUT)) {
         rreqSent = false;
         connectToLoRa();
+    } else if (!connected && ((millis() - lastWifiAttempt) > WIFI_RECONN)) {
+        connectToNetwork();
     } else {
         // Continuous listen for packets
-        // TODO: add CRC!!!
         int packetSize = LoRa.parsePacket();
         if (packetSize) {
             Serial.print("Packet received...");
@@ -231,8 +335,7 @@ void LoRaSENSE::loop() {
                 rrep.send();
                 Serial.println("RREP packet sent");
                 delay(1000);
-            }
-            else if (packet.getType() == RREP_TYP) {
+            } else if (packet.getType() == RREP_TYP) {
                 Serial.println("RREP");
                 int sourceId = packet.getSourceId();
                 byte* data;
@@ -247,6 +350,97 @@ void LoRaSENSE::loop() {
                     Serial.printf("Hop count: %i", this->hopCount);
                     funcOnConnect();
                 }
+            } else if (packet.getType() == DATA_TYP) {
+                Serial.println("DATA");
+                Serial.println("Adding packet to queue...");
+                byte* data;
+                int data_len = packet.getData(data);
+                Packet* newPacket = new Packet(packet.getType(), this->id, this->parent_id, packet.getSourceId(), data, data_len);
+                packetQueue.push(newPacket);
+            }
+        }
+        // Send packets from packet queue
+        if (((millis() - lastDataSent) > DATA_SEND) && !packetQueue.isEmpty()) {
+            Serial.printf("Sending data packets...%i packets in queue\n", packetQueue.getSize());
+            lastDataSent = millis();
+            while (!packetQueue.isEmpty()) {
+                Packet* packet = packetQueue.popFront();
+                if (this->hopCount > 0) {
+                    packet->send();
+                } else {
+                    Serial.printf("Sending packet %i to server...", packet->getPacketId());
+                    DynamicJsonDocument jsonDoc(1024);
+                    byte* data;
+                    int data_len = packet->getData(data);
+                    long pm2_5 = 0, pm10 = 0, co = 0, temp = 0, humid = 0;
+                    pm2_5 = pm2_5 | (data[0] << 56 & 0xFF);
+                    pm2_5 = pm2_5 | (data[1] << 48 & 0xFF);
+                    pm2_5 = pm2_5 | (data[2] << 40 & 0xFF);
+                    pm2_5 = pm2_5 | (data[3] << 32 & 0xFF);
+                    pm2_5 = pm2_5 | (data[4] << 24 & 0xFF);
+                    pm2_5 = pm2_5 | (data[5] << 16 & 0xFF);
+                    pm2_5 = pm2_5 | (data[6] << 8 & 0xFF);
+                    pm2_5 = pm2_5 | (data[7] << 0 & 0xFF);
+                    pm10 = pm10 | (data[8] << 56 & 0xFF);
+                    pm10 = pm10 | (data[9] << 48 & 0xFF);
+                    pm10 = pm10 | (data[10] << 40 & 0xFF);
+                    pm10 = pm10 | (data[11] << 32 & 0xFF);
+                    pm10 = pm10 | (data[12] << 24 & 0xFF);
+                    pm10 = pm10 | (data[13] << 16 & 0xFF);
+                    pm10 = pm10 | (data[14] << 8 & 0xFF);
+                    pm10 = pm10 | (data[15] << 0 & 0xFF);
+                    co = co | (data[16] << 56 & 0xFF);
+                    co = co | (data[17] << 48 & 0xFF);
+                    co = co | (data[18] << 40 & 0xFF);
+                    co = co | (data[19] << 32 & 0xFF);
+                    co = co | (data[20] << 24 & 0xFF);
+                    co = co | (data[21] << 16 & 0xFF);
+                    co = co | (data[22] << 8 & 0xFF);
+                    co = co | (data[23] << 0 & 0xFF);
+                    temp = temp | (data[24] << 56 & 0xFF);
+                    temp = temp | (data[25] << 48 & 0xFF);
+                    temp = temp | (data[26] << 40 & 0xFF);
+                    temp = temp | (data[27] << 32 & 0xFF);
+                    temp = temp | (data[28] << 24 & 0xFF);
+                    temp = temp | (data[29] << 16 & 0xFF);
+                    temp = temp | (data[30] << 8 & 0xFF);
+                    temp = temp | (data[31] << 0 & 0xFF);
+                    humid = humid | (data[32] << 56 & 0xFF);
+                    humid = humid | (data[33] << 48 & 0xFF);
+                    humid = humid | (data[34] << 40 & 0xFF);
+                    humid = humid | (data[35] << 32 & 0xFF);
+                    humid = humid | (data[36] << 24 & 0xFF);
+                    humid = humid | (data[37] << 16 & 0xFF);
+                    humid = humid | (data[38] << 8 & 0xFF);
+                    humid = humid | (data[39] << 0 & 0xFF);
+                    jsonDoc["packetId"] = packet->getPacketId();
+                    jsonDoc["pm2_5"] = pm2_5;
+                    jsonDoc["pm10"] = pm10;
+                    jsonDoc["co"] = co;
+                    jsonDoc["temp"] = temp;
+                    jsonDoc["humid"] = humid;
+                    char jsonStr[measureJson(jsonDoc)];
+                    serializeJson(jsonDoc, jsonStr, sizeof(jsonStr));
+                    // TODO: maybe this can be optimized further? (ie. initialization of HTTPClient)
+                    HTTPClient httpClient;
+                    String endpoint = SERVER_ENDPOINT;
+                    endpoint.replace("$ACCESS_TOKEN", this->thingsboard_access_token);
+                    // DEBUGGING
+                        Serial.printf("%s...", endpoint.c_str());
+                    //
+                    httpClient.begin(endpoint);
+                    int httpResponseCode = httpClient.POST(jsonStr);
+                    if (httpResponseCode == 200) {
+                        Serial.println("sent");
+                    } else if (httpResponseCode >= 400) {
+                        Serial.printf("error(%i)\n", httpResponseCode);
+                        Serial.println(httpClient.getString());
+                    } else {
+                        Serial.printf("fatal error(%i)\n", httpResponseCode);
+                    }
+                    httpClient.end();
+                }
+                delete packet;
             }
         }
     }
@@ -258,7 +452,7 @@ void LoRaSENSE::connectToNetwork() {
         for (int i = 0; i < wifi_arr_len; ++i) {
             Serial.printf("Connecting to Wi-Fi router \"%s\"", ssid_arr[i]);
             WiFi.begin(ssid_arr[i], pwd_arr[i]);
-            for (int time = 0; WiFi.status() != WL_CONNECTED && time < timeout; time += 500) {
+            for (int time = 0; WiFi.status() != WL_CONNECTED && time < wifiTimeout; time += 500) {
                 delay(500);
                 Serial.print(".");
             }
@@ -269,6 +463,7 @@ void LoRaSENSE::connectToNetwork() {
                 Serial.println("unable to connect");
             }
         }
+        lastWifiAttempt = millis();
     }
     if (WiFi.status() != WL_CONNECTED) {
         //Connect to LoRa mesh

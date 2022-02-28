@@ -21,8 +21,9 @@
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 
 //Constants
-// #define NODE_ID 0xAAAAAAAA
-#define NODE_ID 0xBBBBBBBB
+#define NODE_ID 0xAAAAAAAA
+#define NODE_ACCESS_TOKEN "wGkmunxRiUWWfaLkLu8q"  // Thingsboard access token for node A
+// #define NODE_ID 0xBBBBBBBB
 
 //Screen
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
@@ -32,7 +33,7 @@ const int wifi_arr_len = 1;
 char *ssid_arr[wifi_arr_len] = {"mirasbahay"};
 char *pwd_arr[wifi_arr_len] = {"carlopiadredcels"};
 
-class LoRaSENSE LoRaSENSE(NODE_ID, ssid_arr, pwd_arr, wifi_arr_len, WIFI_TIMEOUT);
+class LoRaSENSE LoRaSENSE(NODE_ACCESS_TOKEN, NODE_ID, ssid_arr, pwd_arr, wifi_arr_len, WIFI_TIMEOUT);
 
 void onConnect() {
   display.clearDisplay();
