@@ -274,11 +274,11 @@ void LoRaSENSE::loop() {
         if (((millis() - lastDataSent) > DATA_SEND)) {
             Serial.printf("int: %i, long long: %i, double: %i\n", sizeof(int), sizeof(long long), sizeof(double));
             long long* data = new long long[5];
-            data[0] = 100;
-            data[1] = 55;
-            data[2] = 34;
-            data[3] = 30;
-            data[4] = 45;
+            data[0] = rand();  // pm2.5
+            data[1] = rand();   // pm10
+            data[2] = rand();   // co
+            data[3] = rand();   // temp
+            data[4] = rand();   // humid
             Packet* dataPkt = new Packet(DATA_TYP, this->id, this->id, this->id, reinterpret_cast<byte*>(data), sizeof(long long)*5);
             Serial.printf("Adding test data packet %i to queue...\n", dataPkt->getPacketId());
             packetQueue.push(dataPkt);
@@ -341,7 +341,7 @@ void LoRaSENSE::loop() {
         }
         // Send packets from packet queue
         if (((millis() - lastDataSent) > DATA_SEND) && !packetQueue.isEmpty()) {
-            Serial.printf("Sending data packets...%i packets in queue\n", packetQueue.getSize());
+            Serial.printf("Sending data packets...%i packet/s in queue\n", packetQueue.getSize());
             lastDataSent = millis();
             while (!packetQueue.isEmpty()) {
                 Packet* packet = packetQueue.popFront();
@@ -352,10 +352,7 @@ void LoRaSENSE::loop() {
                     StaticJsonDocument<256> jsonDoc;
                     byte* data;
                     int data_len = packet->getData(data);
-                    // DEBUGGING
-                        Serial.printf("data length: %i...\n", data_len);
-                        // packet->printToSerial();
-                    //
+                    // TODO: fix this, perhaps with type punning?
                     long long pm2_5 = 0, pm10 = 0, co = 0, temp = 0, humid = 0;
                     pm2_5 = pm2_5 | (data[7] << 56);
                     pm2_5 = pm2_5 | (data[6] << 48);
@@ -410,7 +407,7 @@ void LoRaSENSE::loop() {
                     String endpoint = SERVER_ENDPOINT;
                     endpoint.replace("$ACCESS_TOKEN", this->thingsboard_access_token);
                     // DEBUGGING
-                        Serial.printf("%s...", jsonStr.c_str());
+                        // Serial.printf("%s...", jsonStr.c_str());
                     //
                     httpClient.begin(endpoint);
                     int httpResponseCode = httpClient.POST(jsonStr);
@@ -423,8 +420,6 @@ void LoRaSENSE::loop() {
                         Serial.printf("fatal error(%i)\n", httpResponseCode);
                     }
                     httpClient.end();
-                    // jsonDoc.clear();
-                    // jsonDoc.garbageCollect();
                 }
                 delete packet;
             }
