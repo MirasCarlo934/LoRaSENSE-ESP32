@@ -1,6 +1,6 @@
 /*
   NOTES
-  1. Modify NODE_ID (main.cpp)
+  1. Modify NODE_ID and NODE_ACCESS_TOKEN (main.cpp)
   2. Set ROOTABLE (LoRaSENSE.h)
 */
 
@@ -21,9 +21,10 @@
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 
 //Constants
-#define NODE_ID 0xAAAAAAAA
-#define NODE_ACCESS_TOKEN "wGkmunxRiUWWfaLkLu8q"  // Thingsboard access token for node A
-// #define NODE_ID 0xBBBBBBBB
+// #define NODE_ID 0xAAAAAAAA
+// #define NODE_ACCESS_TOKEN "wGkmunxRiUWWfaLkLu8q"  // Thingsboard access token for node A
+#define NODE_ID 0xBBBBBBBB
+#define NODE_ACCESS_TOKEN "u24bOqqfCGKZ4IMc0M6j"  // Thingsboard access token for node B
 
 //Screen
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
@@ -43,6 +44,15 @@ void onConnect() {
   idStr.toUpperCase();
   String displayStr = idStr + " (" + String(LoRaSENSE.getHopCount()) + ")";
   display.print(displayStr);
+  display.setCursor(0,10);
+  if (LoRaSENSE.getHopCount() == 0) {
+    display.print("Connected as ROOT");
+  } else {
+    String parentId = String(LoRaSENSE.getParentId(), HEX);
+    parentId.toUpperCase();
+    String msg = "Connected to " + parentId;
+    display.print(msg);
+  }
   display.display();
 }
 

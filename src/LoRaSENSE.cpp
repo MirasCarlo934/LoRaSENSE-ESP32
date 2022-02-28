@@ -272,7 +272,6 @@ void LoRaSENSE::setup() {
 void LoRaSENSE::loop() {
     // TESTING
         if (((millis() - lastDataSent) > DATA_SEND)) {
-            Serial.printf("int: %i, long long: %i, double: %i\n", sizeof(int), sizeof(long long), sizeof(double));
             long long* data = new long long[5];
             data[0] = rand();  // pm2.5
             data[1] = rand();   // pm10
@@ -346,7 +345,9 @@ void LoRaSENSE::loop() {
             while (!packetQueue.isEmpty()) {
                 Packet* packet = packetQueue.popFront();
                 if (this->hopCount > 0) {
-                    packet->send();
+                    // TODO: continue here!!
+                    // Serial.printf("Sending packet %i to parent %s...", packet->getPacketId(), String(this->parent_id, HEX).c_str());
+                    // packet->send();
                 } else {
                     Serial.printf("Sending packet %i to server...", packet->getPacketId());
                     StaticJsonDocument<256> jsonDoc;
@@ -474,6 +475,10 @@ void LoRaSENSE::setOnConnect(void funcOnConnect()) {
 
 int LoRaSENSE::getId() {
     return id;
+}
+
+int LoRaSENSE::getParentId() {
+    return parent_id;
 }
 
 int LoRaSENSE::getHopCount() {

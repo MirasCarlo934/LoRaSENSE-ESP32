@@ -38,8 +38,8 @@
 #define SERVER_CA ""
 
 //Debugging (can be overridden)
-#define ROOTABLE true
-// #define ROOTABLE false
+// #define ROOTABLE true
+#define ROOTABLE false
 
 class Packet {
     private:
@@ -114,6 +114,7 @@ class LoRaSENSE {
 
         void setOnConnect(void funcOnConnect());
         int getId();
+        int getParentId();
         int getHopCount();
         bool isConnected();
 };
