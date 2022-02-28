@@ -272,36 +272,16 @@ void LoRaSENSE::setup() {
 void LoRaSENSE::loop() {
     // TESTING
         if (((millis() - lastDataSent) > DATA_SEND)) {
-            // const int init_packet_queue_size = 1;
-            // Packet packet_queue_arr[init_packet_queue_size];
-            // Vector<Packet> queue(packet_queue_arr);
-            long* data = new long[5];
+            Serial.printf("int: %i, long long: %i, double: %i\n", sizeof(int), sizeof(long long), sizeof(double));
+            long long* data = new long long[5];
             data[0] = 100;
             data[1] = 55;
             data[2] = 34;
             data[3] = 30;
             data[4] = 45;
-            Packet* dataPkt = new Packet(DATA_TYP, this->id, this->id, this->id, reinterpret_cast<byte*>(data), sizeof(long)*5);
+            Packet* dataPkt = new Packet(DATA_TYP, this->id, this->id, this->id, reinterpret_cast<byte*>(data), sizeof(long long)*5);
             Serial.printf("Adding test data packet %i to queue...\n", dataPkt->getPacketId());
-            long data2[5];
-            data2[0] = 100;
-            data2[1] = 53335;
-            data2[2] = 344;
-            data2[3] = 30;
-            data2[4] = 312345;
-            Packet* dataPkt2 = new Packet(DATA_TYP, this->id, this->id, this->id, reinterpret_cast<byte*>(data2), sizeof(long)*5);
-            // Serial.printf("packet id (before): %i\n", dataPkt->getPacketId());
             packetQueue.push(dataPkt);
-            packetQueue.push(dataPkt2);
-            // Serial.printf("before: %i\n", packetQueue.getSize());
-            // Packet* p1 = packetQueue.popFront();
-            // Packet p2 = packetQueue.popFront();
-            // Serial.printf("after: %i\n", packetQueue.getSize());
-            // Serial.printf("0: %i\n", packetQueue.popFront().getPacketId());
-            // Serial.printf("1: %i\n", packetQueue.popFront().getPacketId());
-            // Serial.printf("%i\n", packetQueue.getSize());
-            // Serial.println("DONE");
-            // delay(5000);
         }
     //
 
@@ -369,64 +349,68 @@ void LoRaSENSE::loop() {
                     packet->send();
                 } else {
                     Serial.printf("Sending packet %i to server...", packet->getPacketId());
-                    DynamicJsonDocument jsonDoc(1024);
+                    StaticJsonDocument<256> jsonDoc;
                     byte* data;
                     int data_len = packet->getData(data);
-                    long pm2_5 = 0, pm10 = 0, co = 0, temp = 0, humid = 0;
-                    pm2_5 = pm2_5 | (data[0] << 56 & 0xFF);
-                    pm2_5 = pm2_5 | (data[1] << 48 & 0xFF);
-                    pm2_5 = pm2_5 | (data[2] << 40 & 0xFF);
-                    pm2_5 = pm2_5 | (data[3] << 32 & 0xFF);
-                    pm2_5 = pm2_5 | (data[4] << 24 & 0xFF);
-                    pm2_5 = pm2_5 | (data[5] << 16 & 0xFF);
-                    pm2_5 = pm2_5 | (data[6] << 8 & 0xFF);
-                    pm2_5 = pm2_5 | (data[7] << 0 & 0xFF);
-                    pm10 = pm10 | (data[8] << 56 & 0xFF);
-                    pm10 = pm10 | (data[9] << 48 & 0xFF);
-                    pm10 = pm10 | (data[10] << 40 & 0xFF);
-                    pm10 = pm10 | (data[11] << 32 & 0xFF);
-                    pm10 = pm10 | (data[12] << 24 & 0xFF);
-                    pm10 = pm10 | (data[13] << 16 & 0xFF);
-                    pm10 = pm10 | (data[14] << 8 & 0xFF);
-                    pm10 = pm10 | (data[15] << 0 & 0xFF);
-                    co = co | (data[16] << 56 & 0xFF);
-                    co = co | (data[17] << 48 & 0xFF);
-                    co = co | (data[18] << 40 & 0xFF);
-                    co = co | (data[19] << 32 & 0xFF);
-                    co = co | (data[20] << 24 & 0xFF);
-                    co = co | (data[21] << 16 & 0xFF);
-                    co = co | (data[22] << 8 & 0xFF);
-                    co = co | (data[23] << 0 & 0xFF);
-                    temp = temp | (data[24] << 56 & 0xFF);
-                    temp = temp | (data[25] << 48 & 0xFF);
-                    temp = temp | (data[26] << 40 & 0xFF);
-                    temp = temp | (data[27] << 32 & 0xFF);
-                    temp = temp | (data[28] << 24 & 0xFF);
-                    temp = temp | (data[29] << 16 & 0xFF);
-                    temp = temp | (data[30] << 8 & 0xFF);
-                    temp = temp | (data[31] << 0 & 0xFF);
-                    humid = humid | (data[32] << 56 & 0xFF);
-                    humid = humid | (data[33] << 48 & 0xFF);
-                    humid = humid | (data[34] << 40 & 0xFF);
-                    humid = humid | (data[35] << 32 & 0xFF);
-                    humid = humid | (data[36] << 24 & 0xFF);
-                    humid = humid | (data[37] << 16 & 0xFF);
-                    humid = humid | (data[38] << 8 & 0xFF);
-                    humid = humid | (data[39] << 0 & 0xFF);
+                    // DEBUGGING
+                        Serial.printf("data length: %i...\n", data_len);
+                        // packet->printToSerial();
+                    //
+                    long long pm2_5 = 0, pm10 = 0, co = 0, temp = 0, humid = 0;
+                    pm2_5 = pm2_5 | (data[7] << 56);
+                    pm2_5 = pm2_5 | (data[6] << 48);
+                    pm2_5 = pm2_5 | (data[5] << 40);
+                    pm2_5 = pm2_5 | (data[4] << 32);
+                    pm2_5 = pm2_5 | (data[3] << 24);
+                    pm2_5 = pm2_5 | (data[2] << 16);
+                    pm2_5 = pm2_5 | (data[1] << 8);
+                    pm2_5 = pm2_5 | (data[0] << 0);
+                    pm10 = pm10 | (data[15] << 56);
+                    pm10 = pm10 | (data[14] << 48);
+                    pm10 = pm10 | (data[13] << 40);
+                    pm10 = pm10 | (data[12] << 32);
+                    pm10 = pm10 | (data[11] << 24);
+                    pm10 = pm10 | (data[10] << 16);
+                    pm10 = pm10 | (data[9] << 8);
+                    pm10 = pm10 | (data[8] << 0);
+                    co = co | (data[23] << 56);
+                    co = co | (data[22] << 48);
+                    co = co | (data[21] << 40);
+                    co = co | (data[20] << 32);
+                    co = co | (data[19] << 24);
+                    co = co | (data[18] << 16);
+                    co = co | (data[17] << 8);
+                    co = co | (data[16] << 0);
+                    temp = temp | (data[31] << 56);
+                    temp = temp | (data[30] << 48);
+                    temp = temp | (data[29] << 40);
+                    temp = temp | (data[28] << 32);
+                    temp = temp | (data[27] << 24);
+                    temp = temp | (data[26] << 16);
+                    temp = temp | (data[25] << 8);
+                    temp = temp | (data[24] << 0);
+                    humid = humid | (data[39] << 56);
+                    humid = humid | (data[38] << 48);
+                    humid = humid | (data[37] << 40);
+                    humid = humid | (data[36] << 32);
+                    humid = humid | (data[35] << 24);
+                    humid = humid | (data[34] << 16);
+                    humid = humid | (data[33] << 8);
+                    humid = humid | (data[32] << 0);
                     jsonDoc["packetId"] = packet->getPacketId();
                     jsonDoc["pm2_5"] = pm2_5;
                     jsonDoc["pm10"] = pm10;
                     jsonDoc["co"] = co;
                     jsonDoc["temp"] = temp;
                     jsonDoc["humid"] = humid;
-                    char jsonStr[measureJson(jsonDoc)];
-                    serializeJson(jsonDoc, jsonStr, sizeof(jsonStr));
+                    String jsonStr = "";
+                    serializeJson(jsonDoc, jsonStr);
                     // TODO: maybe this can be optimized further? (ie. initialization of HTTPClient)
                     HTTPClient httpClient;
                     String endpoint = SERVER_ENDPOINT;
                     endpoint.replace("$ACCESS_TOKEN", this->thingsboard_access_token);
                     // DEBUGGING
-                        Serial.printf("%s...", endpoint.c_str());
+                        Serial.printf("%s...", jsonStr.c_str());
                     //
                     httpClient.begin(endpoint);
                     int httpResponseCode = httpClient.POST(jsonStr);
@@ -439,6 +423,8 @@ void LoRaSENSE::loop() {
                         Serial.printf("fatal error(%i)\n", httpResponseCode);
                     }
                     httpClient.end();
+                    // jsonDoc.clear();
+                    // jsonDoc.garbageCollect();
                 }
                 delete packet;
             }
