@@ -2,6 +2,7 @@
 #define LORASENSE_H
 
 #include <Arduino.h>
+#include <ArduinoJson.h>
 
 //Libraries for LoRa
 #include <SPI.h>
@@ -15,9 +16,6 @@
 
 //Libraries for CRC
 // #include "CRC.h"
-
-//Utils
-#include<Vector.h>
 
 //Constants
 #define RREQ_TYP 0b000
