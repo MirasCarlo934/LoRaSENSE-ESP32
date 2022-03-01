@@ -21,12 +21,13 @@
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 
 //Constants
-#define NODE_ID 0xAAAAAAAA
+// #define NODE_ID 0xAAAAAAAA
 // #define NODE_ACCESS_TOKEN "wGkmunxRiUWWfaLkLu8q"  // Thingsboard access token for node A
-// #define NODE_ID 0xBBBBBBBB
+#define NODE_ID 0xBBBBBBBB
 // #define NODE_ACCESS_TOKEN "u24bOqqfCGKZ4IMc0M6j"  // Thingsboard access token for node B
 // #define NODE_ID 0xCCCCCCCC
 // #define NODE_ACCESS_TOKEN "XWJo5u7tAyvPGnduuqOa"  // Thingsboard access token for node C
+#define CYCLE_TIME 10000     // 10s, for testing only!!
 
 //Screen
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
@@ -40,6 +41,9 @@ char *pwd_arr[wifi_arr_len] = {"carlopiadredcels"};
 const int nodes = 3;
 unsigned int node_ids[nodes] = {0xAAAAAAAA, 0xBBBBBBBB, 0xCCCCCCCC};
 char* node_tokens[nodes] = {"wGkmunxRiUWWfaLkLu8q", "u24bOqqfCGKZ4IMc0M6j", "XWJo5u7tAyvPGnduuqOa"};
+
+//Timekeeping
+unsigned long lastCycle = 0; // describes the time from which the LAST DATA CYCLE started, not the actual last data packet sent
 
 class LoRaSENSE LoRaSENSE(node_ids, node_tokens, nodes, NODE_ID, ssid_arr, pwd_arr, wifi_arr_len, WIFI_TIMEOUT);
 
@@ -98,5 +102,17 @@ void setup() {
 }
 
 void loop() {
+  if (millis() - lastCycle >= CYCLE_TIME) {
+    lastCycle = millis(); // lastCycle must ALWAYS be reset every START of the cycle
+    long long* data = new long long[5];
+    data[0] = rand();   // pm2.5
+    data[1] = rand();   // pm10
+    data[2] = rand();   // co
+    data[3] = rand();   // temp
+    data[4] = rand();   // humid
+    Packet* dataPkt = new Packet(DATA_TYP, LoRaSENSE.getId(), LoRaSENSE.getParentId(), LoRaSENSE.getId(), reinterpret_cast<byte*>(data), sizeof(long long)*5);
+    Serial.printf("Adding test data packet %i to queue...\n", dataPkt->getPacketId());
+    LoRaSENSE.addPacketToQueue(dataPkt);
+  }
   LoRaSENSE.loop();
 }

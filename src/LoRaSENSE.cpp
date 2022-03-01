@@ -320,7 +320,7 @@ void LoRaSENSE::processData(Packet packet) {
     byte* data;
     int data_len = packet.getData(data);
     Packet* newPacket = new Packet(packet.getType(), this->id, this->parent_id, packet.getSourceId(), data, data_len);
-    packetQueue.push(newPacket);
+    this->addPacketToQueue(newPacket);
 }
 
 void LoRaSENSE::setup() {
@@ -346,17 +346,17 @@ void LoRaSENSE::setup() {
 
 void LoRaSENSE::loop() {
     // TESTING
-        if (connected && ((millis() - lastDataSent) > DATA_SEND)) {
-            long long* data = new long long[5];
-            data[0] = rand();   // pm2.5
-            data[1] = rand();   // pm10
-            data[2] = rand();   // co
-            data[3] = rand();   // temp
-            data[4] = rand();   // humid
-            Packet* dataPkt = new Packet(DATA_TYP, this->id, this->parent_id, this->id, reinterpret_cast<byte*>(data), sizeof(long long)*5);
-            Serial.printf("Adding test data packet %i to queue...\n", dataPkt->getPacketId());
-            packetQueue.push(dataPkt);
-        }
+        // if (connected && ((millis() - lastDataSent) > DATA_SEND)) {
+        //     long long* data = new long long[5];
+        //     data[0] = rand();   // pm2.5
+        //     data[1] = rand();   // pm10
+        //     data[2] = rand();   // co
+        //     data[3] = rand();   // temp
+        //     data[4] = rand();   // humid
+        //     Packet* dataPkt = new Packet(DATA_TYP, this->id, this->parent_id, this->id, reinterpret_cast<byte*>(data), sizeof(long long)*5);
+        //     Serial.printf("Adding test data packet %i to queue...\n", dataPkt->getPacketId());
+        //     packetQueue.push(dataPkt);
+        // }
     //
 
     // TODO: this if-then-else block can be simplified
@@ -371,13 +371,13 @@ void LoRaSENSE::loop() {
         // Continuous listen for packets
         int packetSize = LoRa.parsePacket();
         if (packetSize) {
-            Serial.print("Packet received...");
             int rssi = LoRa.packetRssi();
             byte packetBuf[packetSize];
             for (int i = 0; LoRa.available(); ++i) {
                 packetBuf[i] = LoRa.read();
             }
             Packet* packet = new Packet(packetBuf, packetSize);
+            Serial.printf("Packet received from %u (source: %u)...", packet->getSenderId(), packet->getSourceId());
             if (packet->getType() == RREQ_TYP) {
                 Serial.println("RREQ");
                 // processRreq(packet);
@@ -388,7 +388,7 @@ void LoRaSENSE::loop() {
                 data[3] = hopCount & 0xFF;
                 Packet* rrep = new Packet(RREP_TYP, this->id, packet->getSenderId(), this->id, data, 4);
                 // rrep.send();
-                packetQueue.push(rrep);
+                this->addPacketToQueue(rrep);
                 // Serial.println("RREP packet sent");
                 delay(1000);
             } else if (packet->getType() == RREP_TYP && packet->getReceiverId() == this->getId()) {
@@ -417,17 +417,16 @@ void LoRaSENSE::loop() {
             } else if (packet->getType() == DATA_TYP && packet->getReceiverId() == this->getId()) {
                 Serial.println("DATA");
                 // processData(packet);
-                Serial.println("Adding packet to queue...");
                 Packet* newPacket = new Packet(*packet, this->id, this->parent_id);
-                packetQueue.push(newPacket);
+                this->addPacketToQueue(newPacket);
             }
             // delete packet;
         }
     }
     // Send packets from packet queue
     if (/*connected && */!packetQueue.isEmpty()) {
-        Serial.printf("Sending data packets...%i packet/s in queue\n", packetQueue.getSize());
-        lastDataSent = millis();
+        Serial.printf("Sending %i packets in queue...\n", packetQueue.getSize());
+        // lastDataSent = millis();
         while (!packetQueue.isEmpty()) {
             Packet* packet = packetQueue.popFront();
             if (hopCount > 0 || (packet->getType() != DATA_TYP && packet->getType() != RSTA_TYP)) {
@@ -536,6 +535,7 @@ void LoRaSENSE::loop() {
 
 // TODO: this can be simplified
 void LoRaSENSE::connectToNetwork() {
+    // TODO: THIS SHOULDN'T BE HERE! (there is a time interval before node attempts to reconnect to wifi)
     startConnectTime = millis();
     #ifdef MIN_HOP
     if (MIN_HOP == 0) {
@@ -576,11 +576,17 @@ void LoRaSENSE::connectToLoRa() {
     WiFi.mode(WIFI_OFF);
     Serial.println("Connecting to LoRa mesh...");
     Packet* rreq = new Packet(RREQ_TYP, id, 0, 0, nullptr, 0);
-    packetQueue.push(rreq);
+    this->addPacketToQueue(rreq);
     // rreq.send();
     // Serial.println("RREQ packet sent!");
     rreqSent = true;
     lastRreqSent = millis();
+}
+
+void LoRaSENSE::addPacketToQueue(Packet* packet) {
+    Serial.printf("Adding %s packet %u to queue...", packet->getTypeInString(), packet->getPacketId());
+    this->packetQueue.push(packet);
+    Serial.printf("DONE. %u packet/s currently in queue\n", this->packetQueue.getSize());
 }
 
 void LoRaSENSE::setOnConnect(void funcOnConnect()) {

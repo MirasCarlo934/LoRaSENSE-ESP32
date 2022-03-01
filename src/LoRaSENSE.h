@@ -29,8 +29,6 @@
 #define WIFI_TIMEOUT 5000   // 5s
 #define RREQ_TIMEOUT 5000   // 5s
 #define WIFI_RECONN 60000   // 60s
-// #define DATA_SEND 300000    // 300s/5mins
-#define DATA_SEND 10000     // 10s, for testing only!!
 
 //Server info
 // #define SERVER_ENDPOINT "https://psgj46mwwb.execute-api.us-east-1.amazonaws.com/production/packet"
@@ -40,7 +38,7 @@
 //Debugging (can be overridden)
 // #define ROOTABLE true
 // #define ROOTABLE false
-#define MIN_HOP 0
+#define MIN_HOP 1
 
 class Packet {
     private:
@@ -110,7 +108,7 @@ class LoRaSENSE {
         unsigned long wifiTimeout;
         unsigned long lastRreqSent;
         unsigned long lastWifiAttempt;
-        unsigned long lastDataSent = 0; // describes the time from which the LAST DATA CYCLE started, not the actual last data packet sent
+        // unsigned long lastDataSent = 0; // describes the time from which the LAST DATA CYCLE started, not the actual last data packet sent
         unsigned long nextSendAttempt = 0; // time in millis where next send attempt can be made
 
         void processRreq(Packet packet);
@@ -123,6 +121,7 @@ class LoRaSENSE {
         void loop();
         void connectToNetwork();
         void connectToLoRa();
+        void addPacketToQueue(Packet* packet);
 
         void setOnConnect(void funcOnConnect());
         unsigned int getId();
