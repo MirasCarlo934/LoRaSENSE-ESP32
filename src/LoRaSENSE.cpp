@@ -271,8 +271,10 @@ int Packet::getLength() {
 
 
 
-LoRaSENSE::LoRaSENSE(String thingsboard_access_token, int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, long timeout) {
-    this->thingsboard_access_token = thingsboard_access_token;
+LoRaSENSE::LoRaSENSE(unsigned int* node_ids, char** node_tokens, int nodes, unsigned int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, long timeout) {
+    this->node_ids = node_ids;
+    this->node_tokens = node_tokens;
+    this->nodes = nodes;
     this->id = id;
     this->ssid_arr = ssid_arr;
     this->pwd_arr = pwd_arr;
@@ -344,17 +346,17 @@ void LoRaSENSE::setup() {
 
 void LoRaSENSE::loop() {
     // TESTING
-        // if (connected && ((millis() - lastDataSent) > DATA_SEND)) {
-        //     long long* data = new long long[5];
-        //     data[0] = rand();   // pm2.5
-        //     data[1] = rand();   // pm10
-        //     data[2] = rand();   // co
-        //     data[3] = rand();   // temp
-        //     data[4] = rand();   // humid
-        //     Packet* dataPkt = new Packet(DATA_TYP, this->id, this->parent_id, this->id, reinterpret_cast<byte*>(data), sizeof(long long)*5);
-        //     Serial.printf("Adding test data packet %i to queue...\n", dataPkt->getPacketId());
-        //     packetQueue.push(dataPkt);
-        // }
+        if (connected && ((millis() - lastDataSent) > DATA_SEND)) {
+            long long* data = new long long[5];
+            data[0] = rand();   // pm2.5
+            data[1] = rand();   // pm10
+            data[2] = rand();   // co
+            data[3] = rand();   // temp
+            data[4] = rand();   // humid
+            Packet* dataPkt = new Packet(DATA_TYP, this->id, this->parent_id, this->id, reinterpret_cast<byte*>(data), sizeof(long long)*5);
+            Serial.printf("Adding test data packet %i to queue...\n", dataPkt->getPacketId());
+            packetQueue.push(dataPkt);
+        }
     //
 
     // TODO: this if-then-else block can be simplified
@@ -389,7 +391,7 @@ void LoRaSENSE::loop() {
                 packetQueue.push(rrep);
                 // Serial.println("RREP packet sent");
                 delay(1000);
-            } else if (packet.getType() == RREP_TYP) {
+            } else if (packet.getType() == RREP_TYP && packet.getReceiverId() == this->getId()) {
                 // processRrep(packet, rssi);
                 int sourceId = packet.getSourceId();
                 byte* data;
@@ -412,7 +414,7 @@ void LoRaSENSE::loop() {
                     }
                     #endif
                 }
-            } else if (packet.getType() == DATA_TYP) {
+            } else if (packet.getType() == DATA_TYP && packet.getReceiverId() == this->getId()) {
                 Serial.println("DATA");
                 // processData(packet);
                 Serial.println("Adding packet to queue...");
@@ -506,7 +508,13 @@ void LoRaSENSE::loop() {
                 // TODO: maybe this can be optimized further? (ie. initialization of HTTPClient)
                 HTTPClient httpClient;
                 String endpoint = SERVER_ENDPOINT;
-                endpoint.replace("$ACCESS_TOKEN", this->thingsboard_access_token);
+                char* accessToken;
+                for (int i = 0; i < this->nodes; ++i) {
+                    if (this->id == node_ids[i]) {
+                        accessToken = node_tokens[i];
+                    }
+                }
+                endpoint.replace("$ACCESS_TOKEN", accessToken);
                 // DEBUGGING
                     // Serial.printf("%s...", jsonStr.c_str());
                 //
@@ -580,7 +588,7 @@ void LoRaSENSE::setOnConnect(void funcOnConnect()) {
     this->funcOnConnect = std::bind(funcOnConnect);
 }
 
-int LoRaSENSE::getId() {
+unsigned int LoRaSENSE::getId() {
     return id;
 }
 

@@ -90,8 +90,11 @@ class PacketQueue {
 
 class LoRaSENSE {
     private:
-        String thingsboard_access_token;
-        int id;
+        unsigned int* node_ids;
+        char** node_tokens;
+        int nodes;
+
+        unsigned int id;
         int parent_id;
         char** ssid_arr;
         char** pwd_arr;
@@ -114,7 +117,7 @@ class LoRaSENSE {
         void processRrep(Packet packet, int rssi);
         void processData(Packet packet);
     public:
-        LoRaSENSE(String thingsboard_access_token, int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, long timeout);
+        LoRaSENSE(unsigned int* node_ids, char** node_tokens, int nodes, unsigned int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, long timeout);
         ~LoRaSENSE();
         void setup();
         void loop();
@@ -122,7 +125,7 @@ class LoRaSENSE {
         void connectToLoRa();
 
         void setOnConnect(void funcOnConnect());
-        int getId();
+        unsigned int getId();
         int getParentId();
         int getHopCount();
         bool isConnected();

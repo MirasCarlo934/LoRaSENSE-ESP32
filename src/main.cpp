@@ -1,7 +1,7 @@
 /*
   NOTES
-  1. Modify NODE_ID and NODE_ACCESS_TOKEN (main.cpp)
-  2. Set ROOTABLE (LoRaSENSE.h)
+  1. Set NODE_ID and NODE_ACCESS_TOKEN (main.cpp)
+  2. Set MIN_HOP (LoRaSENSE.h)
 */
 
 #include <Arduino.h>
@@ -21,10 +21,10 @@
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 
 //Constants
-// #define NODE_ID 0xAAAAAAAA
-// #define NODE_ACCESS_TOKEN "wGkmunxRiUWWfaLkLu8q"  // Thingsboard access token for node A
-#define NODE_ID 0xBBBBBBBB
-#define NODE_ACCESS_TOKEN "u24bOqqfCGKZ4IMc0M6j"  // Thingsboard access token for node B
+#define NODE_ID 0xAAAAAAAA
+#define NODE_ACCESS_TOKEN "wGkmunxRiUWWfaLkLu8q"  // Thingsboard access token for node A
+// #define NODE_ID 0xBBBBBBBB
+// #define NODE_ACCESS_TOKEN "u24bOqqfCGKZ4IMc0M6j"  // Thingsboard access token for node B
 // #define NODE_ID 0xCCCCCCCC
 // #define NODE_ACCESS_TOKEN "XWJo5u7tAyvPGnduuqOa"  // Thingsboard access token for node C
 
@@ -36,7 +36,12 @@ const int wifi_arr_len = 1;
 char *ssid_arr[wifi_arr_len] = {"mirasbahay"};
 char *pwd_arr[wifi_arr_len] = {"carlopiadredcels"};
 
-class LoRaSENSE LoRaSENSE(NODE_ACCESS_TOKEN, NODE_ID, ssid_arr, pwd_arr, wifi_arr_len, WIFI_TIMEOUT);
+//Node credentials
+const int nodes = 3;
+unsigned int node_ids[nodes] = {0xAAAAAAAA, 0xBBBBBBBB, 0xCCCCCCCC};
+char* node_tokens[nodes] = {"wGkmunxRiUWWfaLkLu8q", "u24bOqqfCGKZ4IMc0M6j", "XWJo5u7tAyvPGnduuqOa"};
+
+class LoRaSENSE LoRaSENSE(node_ids, node_tokens, nodes, NODE_ID, ssid_arr, pwd_arr, wifi_arr_len, WIFI_TIMEOUT);
 
 void onConnect() {
   display.clearDisplay();
