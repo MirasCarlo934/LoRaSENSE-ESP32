@@ -338,7 +338,7 @@ void LoRaSENSE::loop() {
             data[2] = rand();   // co
             data[3] = rand();   // temp
             data[4] = rand();   // humid
-            Packet* dataPkt = new Packet(DATA_TYP, this->id, this->id, this->id, reinterpret_cast<byte*>(data), sizeof(long long)*5);
+            Packet* dataPkt = new Packet(DATA_TYP, this->id, this->parent_id, this->id, reinterpret_cast<byte*>(data), sizeof(long long)*5);
             Serial.printf("Adding test data packet %i to queue...\n", dataPkt->getPacketId());
             packetQueue.push(dataPkt);
         }
