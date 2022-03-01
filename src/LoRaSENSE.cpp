@@ -377,8 +377,8 @@ void LoRaSENSE::loop() {
             for (int i = 0; LoRa.available(); ++i) {
                 packetBuf[i] = LoRa.read();
             }
-            Packet packet(packetBuf, packetSize);
-            if (packet.getType() == RREQ_TYP) {
+            Packet* packet = new Packet(packetBuf, packetSize);
+            if (packet->getType() == RREQ_TYP) {
                 Serial.println("RREQ");
                 // processRreq(packet);
                 byte data[4]; // hop count
@@ -386,16 +386,16 @@ void LoRaSENSE::loop() {
                 data[1] = (hopCount >> 16) & 0xFF;
                 data[2] = (hopCount >> 8) & 0xFF;
                 data[3] = hopCount & 0xFF;
-                Packet* rrep = new Packet(RREP_TYP, this->id, packet.getSenderId(), this->id, data, 4);
+                Packet* rrep = new Packet(RREP_TYP, this->id, packet->getSenderId(), this->id, data, 4);
                 // rrep.send();
                 packetQueue.push(rrep);
                 // Serial.println("RREP packet sent");
                 delay(1000);
-            } else if (packet.getType() == RREP_TYP && packet.getReceiverId() == this->getId()) {
+            } else if (packet->getType() == RREP_TYP && packet->getReceiverId() == this->getId()) {
                 // processRrep(packet, rssi);
-                int sourceId = packet.getSourceId();
+                int sourceId = packet->getSourceId();
                 byte* data;
-                int data_len = packet.getData(data);
+                int data_len = packet->getData(data);
                 int hopCount = 0;
                 hopCount = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
                 Serial.printf("RREP from %s (hop count: %i)\n", String(sourceId, HEX), hopCount);
@@ -414,15 +414,14 @@ void LoRaSENSE::loop() {
                     }
                     #endif
                 }
-            } else if (packet.getType() == DATA_TYP && packet.getReceiverId() == this->getId()) {
+            } else if (packet->getType() == DATA_TYP && packet->getReceiverId() == this->getId()) {
                 Serial.println("DATA");
                 // processData(packet);
                 Serial.println("Adding packet to queue...");
-                byte* data;
-                int data_len = packet.getData(data);
-                Packet* newPacket = new Packet(packet, this->id, this->parent_id);
+                Packet* newPacket = new Packet(*packet, this->id, this->parent_id);
                 packetQueue.push(newPacket);
             }
+            // delete packet;
         }
     }
     // Send packets from packet queue
@@ -510,7 +509,7 @@ void LoRaSENSE::loop() {
                 String endpoint = SERVER_ENDPOINT;
                 char* accessToken;
                 for (int i = 0; i < this->nodes; ++i) {
-                    if (this->id == node_ids[i]) {
+                    if (packet->getSourceId() == node_ids[i]) {
                         accessToken = node_tokens[i];
                     }
                 }
