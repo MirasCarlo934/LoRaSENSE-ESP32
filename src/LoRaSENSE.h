@@ -46,10 +46,12 @@ class Packet {
         byte* payload;
         long len;
         int data_len;
+        void defaultInit(byte type, int packet_id, int sender_id, int receiver_id, int source_id, byte* data, int data_len);
     public:
         Packet();
         Packet(byte* payload, int len);
         Packet(byte type, int sender_id, int receiver_id, int source_id, byte* data, int data_len);
+        Packet(Packet packet, int sender_id, int receiver_id);  // for DATA packet forwarding
         ~Packet();
         void send();
         void printToSerial();
@@ -103,7 +105,9 @@ class LoRaSENSE {
         unsigned long lastWifiAttempt;
         unsigned long lastDataSent = 0; // describes the time from which the LAST DATA CYCLE started, not the actual last data packet sent
 
-        // Packet constructRreqPacket();
+        void processRreq(Packet packet);
+        void processRrep(Packet packet, int rssi);
+        void processData(Packet packet);
     public:
         LoRaSENSE(String thingsboard_access_token, int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, long timeout);
         ~LoRaSENSE();
