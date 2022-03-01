@@ -39,8 +39,8 @@
 
 //Debugging (can be overridden)
 // #define ROOTABLE true
-#define ROOTABLE false
-#define MIN_HOP 1
+// #define ROOTABLE false
+#define MIN_HOP 0
 
 class Packet {
     private:

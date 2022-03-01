@@ -530,7 +530,9 @@ void LoRaSENSE::loop() {
 // TODO: this can be simplified
 void LoRaSENSE::connectToNetwork() {
     startConnectTime = millis();
-    if (ROOTABLE) {
+    #ifdef MIN_HOP
+    if (MIN_HOP == 0) {
+    #endif
         for (int i = 0; i < wifi_arr_len; ++i) {
             Serial.printf("Connecting to Wi-Fi router \"%s\"...", ssid_arr[i]);
             WiFi.begin(ssid_arr[i], pwd_arr[i]);
@@ -548,7 +550,9 @@ void LoRaSENSE::connectToNetwork() {
             }
         }
         lastWifiAttempt = millis();
+    #ifdef MIN_HOP
     }
+    #endif
     if (WiFi.status() != WL_CONNECTED) {
         //Connect to LoRa mesh
         Serial.println("No valid Wi-Fi router in range.");
