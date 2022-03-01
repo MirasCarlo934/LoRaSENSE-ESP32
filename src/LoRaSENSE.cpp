@@ -105,10 +105,11 @@ Packet::~Packet() {
 
 void Packet::defaultInit(byte type, int packet_id, int sender_id, int receiver_id, int source_id, byte* data, int data_len) {
     int len = 12 + data_len; // minimum header (RREQ/RERR) + data
-    if (type == DACK_TYP || type == NACK_TYP) {
+    if (type != RREQ_TYP && type != RERR_TYP) {
         len += 4;
-    } else {
-        len += 8;
+        if (type != DACK_TYP && type != NACK_TYP) {
+            len += 4;
+        }
     }
     byte* raw_payload = new byte[len-2]; // excludes checksum
     byte* payload = new byte[len];
@@ -142,7 +143,7 @@ void Packet::defaultInit(byte type, int packet_id, int sender_id, int receiver_i
         payload[13] = (receiver_id >> 16) & 0xFF;
         payload[14] = (receiver_id >> 8) & 0xFF;
         payload[15] = receiver_id & 0xFF;
-        len += 4;
+        // len += 4;
         if (type != DACK_TYP && type != NACK_TYP) {
             raw_payload[14] = (source_id >> 24) & 0xFF;
             raw_payload[15] = (source_id >> 16) & 0xFF;
@@ -152,7 +153,7 @@ void Packet::defaultInit(byte type, int packet_id, int sender_id, int receiver_i
             payload[17] = (source_id >> 16) & 0xFF;
             payload[18] = (source_id >> 8) & 0xFF;
             payload[19] = source_id & 0xFF;
-            len += 4;
+            // len += 4;
         }
     }
     if (data_len) {
@@ -170,12 +171,17 @@ void Packet::defaultInit(byte type, int packet_id, int sender_id, int receiver_i
     this->data_len = data_len;
 }
 
-void Packet::send() {
+bool Packet::send() {
+    // Detect if there is a packet in the air first before sending
+    if (LoRa.parsePacket()) {
+        return false;
+    }
     LoRa.beginPacket();
     for (int i = 0; i < len; ++i) {
         LoRa.write(payload[i]);
     }
     LoRa.endPacket();
+    return true;
 }
 
 void Packet::printToSerial() {
@@ -232,6 +238,15 @@ int Packet::getSourceId() {
     sourceId = sourceId | (this->payload[18] << 8);
     sourceId = sourceId | this->payload[19];
     return sourceId;
+}
+
+int Packet::getReceiverId() {
+    int receiverId = 0;
+    receiverId = receiverId | (this->payload[12] << 24);
+    receiverId = receiverId | (this->payload[13] << 16);
+    receiverId = receiverId | (this->payload[14] << 8);
+    receiverId = receiverId | this->payload[15];
+    return receiverId;
 }
 
 int Packet::getLength() {
@@ -350,101 +365,150 @@ void LoRaSENSE::loop() {
             Packet packet(packetBuf, packetSize);
             if (packet.getType() == RREQ_TYP) {
                 Serial.println("RREQ");
-                processRreq(packet);
+                // processRreq(packet);
+                byte data[4]; // hop count
+                data[0] = (hopCount >> 24) & 0xFF;
+                data[1] = (hopCount >> 16) & 0xFF;
+                data[2] = (hopCount >> 8) & 0xFF;
+                data[3] = hopCount & 0xFF;
+                Packet* rrep = new Packet(RREP_TYP, this->id, packet.getSenderId(), this->id, data, 4);
+                // rrep.send();
+                packetQueue.push(rrep);
+                Serial.println("RREP packet sent");
+                delay(1000);
             } else if (packet.getType() == RREP_TYP) {
-                Serial.println("RREP");
-                processRrep(packet, rssi);
+                // processRrep(packet, rssi);
+                int sourceId = packet.getSourceId();
+                byte* data;
+                int data_len = packet.getData(data);
+                int hopCount = 0;
+                hopCount = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
+                Serial.printf("RREP from %s (hop count: %i)\n", String(sourceId, HEX), hopCount);
+                if (hopCount < (this->hopCount - 1) && rssi >= -90) {
+                    #ifdef MIN_HOP
+                    if (hopCount >= MIN_HOP-1) {
+                    #endif
+                    this->parent_id = sourceId;
+                    this->hopCount = hopCount + 1;
+                    connected = true;
+                    Serial.printf("New parent '%s'\n", String(sourceId, HEX));
+                    Serial.printf("Hop count: %i\n", this->hopCount);
+                    funcOnConnect();
+                    #ifdef MIN_HOP
+                    }
+                    #endif
+                }
             } else if (packet.getType() == DATA_TYP) {
                 Serial.println("DATA");
-                processData(packet);
+                // processData(packet);
+                Serial.println("Adding packet to queue...");
+                byte* data;
+                int data_len = packet.getData(data);
+                Packet* newPacket = new Packet(packet, this->id, this->parent_id);
+                packetQueue.push(newPacket);
             }
         }
-        // Send packets from packet queue
-        if (connected && !packetQueue.isEmpty()) {
-            Serial.printf("Sending data packets...%i packet/s in queue\n", packetQueue.getSize());
-            lastDataSent = millis();
-            while (!packetQueue.isEmpty()) {
-                Packet* packet = packetQueue.popFront();
-                if (this->hopCount > 0) {
-                    // TODO: continue here!!
-                    // Serial.printf("Sending packet %i to parent %s...", packet->getPacketId(), String(this->parent_id, HEX).c_str());
-                    // packet->send();
-                } else {
-                    Serial.printf("Sending packet %i to server...", packet->getPacketId());
-                    StaticJsonDocument<256> jsonDoc;
-                    byte* data;
-                    int data_len = packet->getData(data);
-                    // TODO: fix this, perhaps with type punning?
-                    long long pm2_5 = 0, pm10 = 0, co = 0, temp = 0, humid = 0;
-                    pm2_5 = pm2_5 | (data[7] << 56);
-                    pm2_5 = pm2_5 | (data[6] << 48);
-                    pm2_5 = pm2_5 | (data[5] << 40);
-                    pm2_5 = pm2_5 | (data[4] << 32);
-                    pm2_5 = pm2_5 | (data[3] << 24);
-                    pm2_5 = pm2_5 | (data[2] << 16);
-                    pm2_5 = pm2_5 | (data[1] << 8);
-                    pm2_5 = pm2_5 | (data[0] << 0);
-                    pm10 = pm10 | (data[15] << 56);
-                    pm10 = pm10 | (data[14] << 48);
-                    pm10 = pm10 | (data[13] << 40);
-                    pm10 = pm10 | (data[12] << 32);
-                    pm10 = pm10 | (data[11] << 24);
-                    pm10 = pm10 | (data[10] << 16);
-                    pm10 = pm10 | (data[9] << 8);
-                    pm10 = pm10 | (data[8] << 0);
-                    co = co | (data[23] << 56);
-                    co = co | (data[22] << 48);
-                    co = co | (data[21] << 40);
-                    co = co | (data[20] << 32);
-                    co = co | (data[19] << 24);
-                    co = co | (data[18] << 16);
-                    co = co | (data[17] << 8);
-                    co = co | (data[16] << 0);
-                    temp = temp | (data[31] << 56);
-                    temp = temp | (data[30] << 48);
-                    temp = temp | (data[29] << 40);
-                    temp = temp | (data[28] << 32);
-                    temp = temp | (data[27] << 24);
-                    temp = temp | (data[26] << 16);
-                    temp = temp | (data[25] << 8);
-                    temp = temp | (data[24] << 0);
-                    humid = humid | (data[39] << 56);
-                    humid = humid | (data[38] << 48);
-                    humid = humid | (data[37] << 40);
-                    humid = humid | (data[36] << 32);
-                    humid = humid | (data[35] << 24);
-                    humid = humid | (data[34] << 16);
-                    humid = humid | (data[33] << 8);
-                    humid = humid | (data[32] << 0);
-                    jsonDoc["packetId"] = packet->getPacketId();
-                    jsonDoc["pm2_5"] = pm2_5;
-                    jsonDoc["pm10"] = pm10;
-                    jsonDoc["co"] = co;
-                    jsonDoc["temp"] = temp;
-                    jsonDoc["humid"] = humid;
-                    String jsonStr = "";
-                    serializeJson(jsonDoc, jsonStr);
-                    // TODO: maybe this can be optimized further? (ie. initialization of HTTPClient)
-                    HTTPClient httpClient;
-                    String endpoint = SERVER_ENDPOINT;
-                    endpoint.replace("$ACCESS_TOKEN", this->thingsboard_access_token);
-                    // DEBUGGING
-                        // Serial.printf("%s...", jsonStr.c_str());
-                    //
-                    httpClient.begin(endpoint);
-                    int httpResponseCode = httpClient.POST(jsonStr);
-                    if (httpResponseCode == 200) {
-                        Serial.println("sent");
-                    } else if (httpResponseCode >= 400) {
-                        Serial.printf("error(%i)\n", httpResponseCode);
-                        Serial.println(httpClient.getString());
-                    } else {
-                        Serial.printf("fatal error(%i)\n", httpResponseCode);
-                    }
-                    httpClient.end();
-                }
-                delete packet;
+    }
+    // Send packets from packet queue
+    if (/*connected && */!packetQueue.isEmpty()) {
+        Serial.printf("Sending data packets...%i packet/s in queue\n", packetQueue.getSize());
+        lastDataSent = millis();
+        while (!packetQueue.isEmpty()) {
+            if (millis() < nextSendAttempt) {
+                break;
             }
+            Packet* packet = packetQueue.popFront();
+            if (hopCount > 0 || (packet->getType() != DATA_TYP && packet->getType() != RSTA_TYP)) {
+                // TODO: continue here!!
+                if (packet->getType() != RREQ_TYP && packet->getType() != RERR_TYP) {
+                    Serial.printf("Sending packet %i to node %s...", packet->getPacketId(), String(packet->getReceiverId(), HEX).c_str());
+                } else {
+                    Serial.printf("Broadcasting packet %i...", packet->getPacketId());
+                }
+                bool sendSuccess = packet->send();
+                if (!sendSuccess) {
+                    long rand_t = 369 + (rand() % 369);
+                    nextSendAttempt = millis() + rand_t;
+                    Serial.printf("packet detected, rescheduling after %ums...\n", rand_t);
+                    break;
+                } else {
+                    Serial.printf("DONE\n");
+                }
+            } else {
+                Serial.printf("Sending packet %i to server...", packet->getPacketId());
+                StaticJsonDocument<256> jsonDoc;
+                byte* data;
+                int data_len = packet->getData(data);
+                // TODO: fix this, perhaps with type punning?
+                long long pm2_5 = 0, pm10 = 0, co = 0, temp = 0, humid = 0;
+                pm2_5 = pm2_5 | (data[7] << 56);
+                pm2_5 = pm2_5 | (data[6] << 48);
+                pm2_5 = pm2_5 | (data[5] << 40);
+                pm2_5 = pm2_5 | (data[4] << 32);
+                pm2_5 = pm2_5 | (data[3] << 24);
+                pm2_5 = pm2_5 | (data[2] << 16);
+                pm2_5 = pm2_5 | (data[1] << 8);
+                pm2_5 = pm2_5 | (data[0] << 0);
+                pm10 = pm10 | (data[15] << 56);
+                pm10 = pm10 | (data[14] << 48);
+                pm10 = pm10 | (data[13] << 40);
+                pm10 = pm10 | (data[12] << 32);
+                pm10 = pm10 | (data[11] << 24);
+                pm10 = pm10 | (data[10] << 16);
+                pm10 = pm10 | (data[9] << 8);
+                pm10 = pm10 | (data[8] << 0);
+                co = co | (data[23] << 56);
+                co = co | (data[22] << 48);
+                co = co | (data[21] << 40);
+                co = co | (data[20] << 32);
+                co = co | (data[19] << 24);
+                co = co | (data[18] << 16);
+                co = co | (data[17] << 8);
+                co = co | (data[16] << 0);
+                temp = temp | (data[31] << 56);
+                temp = temp | (data[30] << 48);
+                temp = temp | (data[29] << 40);
+                temp = temp | (data[28] << 32);
+                temp = temp | (data[27] << 24);
+                temp = temp | (data[26] << 16);
+                temp = temp | (data[25] << 8);
+                temp = temp | (data[24] << 0);
+                humid = humid | (data[39] << 56);
+                humid = humid | (data[38] << 48);
+                humid = humid | (data[37] << 40);
+                humid = humid | (data[36] << 32);
+                humid = humid | (data[35] << 24);
+                humid = humid | (data[34] << 16);
+                humid = humid | (data[33] << 8);
+                humid = humid | (data[32] << 0);
+                jsonDoc["packetId"] = packet->getPacketId();
+                jsonDoc["pm2_5"] = pm2_5;
+                jsonDoc["pm10"] = pm10;
+                jsonDoc["co"] = co;
+                jsonDoc["temp"] = temp;
+                jsonDoc["humid"] = humid;
+                String jsonStr = "";
+                serializeJson(jsonDoc, jsonStr);
+                // TODO: maybe this can be optimized further? (ie. initialization of HTTPClient)
+                HTTPClient httpClient;
+                String endpoint = SERVER_ENDPOINT;
+                endpoint.replace("$ACCESS_TOKEN", this->thingsboard_access_token);
+                // DEBUGGING
+                    // Serial.printf("%s...", jsonStr.c_str());
+                //
+                httpClient.begin(endpoint);
+                int httpResponseCode = httpClient.POST(jsonStr);
+                if (httpResponseCode == 200) {
+                    Serial.println("sent");
+                } else if (httpResponseCode >= 400) {
+                    Serial.printf("error(%i)\n", httpResponseCode);
+                    Serial.println(httpClient.getString());
+                } else {
+                    Serial.printf("fatal error(%i)\n", httpResponseCode);
+                }
+                httpClient.end();
+            }
+            delete packet;
         }
     }
 }
@@ -483,9 +547,10 @@ void LoRaSENSE::connectToNetwork() {
 void LoRaSENSE::connectToLoRa() {
     WiFi.mode(WIFI_OFF);
     Serial.println("Connecting to LoRa mesh...");
-    Packet rreq(RREQ_TYP, id, 0, 0, nullptr, 0);
-    rreq.send();
-    Serial.println("RREQ packet sent!");
+    Packet* rreq = new Packet(RREQ_TYP, id, 0, 0, nullptr, 0);
+    packetQueue.push(rreq);
+    // rreq.send();
+    // Serial.println("RREQ packet sent!");
     rreqSent = true;
     lastRreqSent = millis();
 }

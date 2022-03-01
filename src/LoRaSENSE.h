@@ -40,7 +40,7 @@
 //Debugging (can be overridden)
 // #define ROOTABLE true
 #define ROOTABLE false
-#define MIN_HOP 2
+#define MIN_HOP 1
 
 class Packet {
     private:
@@ -54,7 +54,7 @@ class Packet {
         Packet(byte type, int sender_id, int receiver_id, int source_id, byte* data, int data_len);
         Packet(Packet packet, int sender_id, int receiver_id);  // for DATA packet forwarding
         ~Packet();
-        void send();
+        bool send();
         void printToSerial();
 
         byte getType();
@@ -105,6 +105,7 @@ class LoRaSENSE {
         unsigned long lastRreqSent;
         unsigned long lastWifiAttempt;
         unsigned long lastDataSent = 0; // describes the time from which the LAST DATA CYCLE started, not the actual last data packet sent
+        unsigned long nextSendAttempt = 0; // time in millis where next send attempt can be made
 
         void processRreq(Packet packet);
         void processRrep(Packet packet, int rssi);
