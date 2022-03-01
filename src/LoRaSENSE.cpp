@@ -199,6 +199,19 @@ byte Packet::getType() {
     return this->payload[0] >> 5;
 }
 
+char* Packet::getTypeInString() {
+    byte type = this->getType();
+    switch (type) {
+        case RREQ_TYP: return "RREQ";
+        case RREP_TYP: return "RREP";
+        case RERR_TYP: return "RERR";
+        case DATA_TYP: return "DATA";
+        case DACK_TYP: return "DACK";
+        case NACK_TYP: return "NACK";
+        case RSTA_TYP: return "RSTA";
+    }
+}
+
 int Packet::getPacketId() {
     int packetId = 0;
     packetId = packetId | (this->payload[4] << 24);
@@ -421,9 +434,9 @@ void LoRaSENSE::loop() {
             if (hopCount > 0 || (packet->getType() != DATA_TYP && packet->getType() != RSTA_TYP)) {
                 // TODO: continue here!!
                 if (packet->getType() != RREQ_TYP && packet->getType() != RERR_TYP) {
-                    Serial.printf("Sending packet %i to node %s...", packet->getPacketId(), String(packet->getReceiverId(), HEX).c_str());
+                    Serial.printf("Sending %s packet %i to node %s...", packet->getTypeInString(), packet->getPacketId(), String(packet->getReceiverId(), HEX).c_str());
                 } else {
-                    Serial.printf("Broadcasting packet %i...", packet->getPacketId());
+                    Serial.printf("Broadcasting %s packet %i...", packet->getTypeInString(), packet->getPacketId());
                 }
                 bool sendSuccess = packet->send();
                 if (!sendSuccess) {

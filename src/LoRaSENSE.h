@@ -58,6 +58,7 @@ class Packet {
         void printToSerial();
 
         byte getType();
+        char* getTypeInString();
         int getPacketId();
         int getSenderId();
         int getSourceId();
