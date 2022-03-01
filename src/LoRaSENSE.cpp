@@ -360,7 +360,7 @@ void LoRaSENSE::loop() {
             }
         }
         // Send packets from packet queue
-        if (connected && !packetQueue.isEmpty() && ((millis() - lastDataSent) > DATA_SEND)) {
+        if (connected && !packetQueue.isEmpty()) {
             Serial.printf("Sending data packets...%i packet/s in queue\n", packetQueue.getSize());
             lastDataSent = millis();
             while (!packetQueue.isEmpty()) {
