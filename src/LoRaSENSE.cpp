@@ -90,6 +90,20 @@ Packet::Packet(byte* payload, int len) {
 }
 
 Packet::Packet(byte type, int sender_id, int receiver_id, int source_id, byte* data, int data_len) {
+    defaultInit(type, rand(), sender_id, receiver_id, source_id, data, data_len);
+}
+
+Packet::Packet(Packet packet, int sender_id, int receiver_id) {
+    byte* data;
+    int data_len = packet.getData(data);
+    defaultInit(packet.getType(), packet.getPacketId(), sender_id, receiver_id, packet.getSourceId(), data, data_len);
+}
+
+Packet::~Packet() {
+    delete payload;
+}
+
+void Packet::defaultInit(byte type, int packet_id, int sender_id, int receiver_id, int source_id, byte* data, int data_len) {
     int len = 12 + data_len; // minimum header (RREQ/RERR) + data
     if (type == DACK_TYP || type == NACK_TYP) {
         len += 4;
@@ -98,7 +112,6 @@ Packet::Packet(byte type, int sender_id, int receiver_id, int source_id, byte* d
     }
     byte* raw_payload = new byte[len-2]; // excludes checksum
     byte* payload = new byte[len];
-    int packet_id = rand();
 
     raw_payload[0] = (type << 5) & 0xFF;
     raw_payload[1] = 0;
@@ -155,10 +168,6 @@ Packet::Packet(byte type, int sender_id, int receiver_id, int source_id, byte* d
     this->payload = payload;
     this->len = len;
     this->data_len = data_len;
-}
-
-Packet::~Packet() {
-    delete payload;
 }
 
 void Packet::send() {

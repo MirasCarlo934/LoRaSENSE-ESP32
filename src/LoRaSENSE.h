@@ -46,10 +46,12 @@ class Packet {
         byte* payload;
         long len;
         int data_len;
+        void defaultInit(byte type, int packet_id, int sender_id, int receiver_id, int source_id, byte* data, int data_len);
     public:
         Packet();
         Packet(byte* payload, int len);
         Packet(byte type, int sender_id, int receiver_id, int source_id, byte* data, int data_len);
+        Packet(Packet packet, int sender_id, int receiver_id);  // for DATA packet forwarding
         ~Packet();
         void send();
         void printToSerial();
