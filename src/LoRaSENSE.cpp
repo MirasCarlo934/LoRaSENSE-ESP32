@@ -257,6 +257,42 @@ LoRaSENSE::~LoRaSENSE() {
     delete[] pwd_arr;
 }
 
+void LoRaSENSE::processRreq(Packet packet) {
+    byte data[4]; // hop count
+    data[0] = (hopCount >> 24) & 0xFF;
+    data[1] = (hopCount >> 16) & 0xFF;
+    data[2] = (hopCount >> 8) & 0xFF;
+    data[3] = hopCount & 0xFF;
+    Packet rrep(RREP_TYP, this->id, packet.getSenderId(), this->id, data, 4);
+    rrep.send();
+    Serial.println("RREP packet sent");
+    delay(1000);
+}
+
+void LoRaSENSE::processRrep(Packet packet, int rssi) {
+    int sourceId = packet.getSourceId();
+    byte* data;
+    int data_len = packet.getData(data);
+    int hopCount = 0;
+    hopCount = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
+    if (hopCount < (this->hopCount - 1) && rssi >= -90) {
+        this->parent_id = sourceId;
+        this->hopCount = hopCount + 1;
+        connected = true;
+        Serial.printf("New parent '%s'\n", String(sourceId, HEX));
+        Serial.printf("Hop count: %i\n", this->hopCount);
+        funcOnConnect();
+    }
+}
+
+void LoRaSENSE::processData(Packet packet) {
+    Serial.println("Adding packet to queue...");
+    byte* data;
+    int data_len = packet.getData(data);
+    Packet* newPacket = new Packet(packet.getType(), this->id, this->parent_id, packet.getSourceId(), data, data_len);
+    packetQueue.push(newPacket);
+}
+
 void LoRaSENSE::setup() {
     //SPI LoRa pins
     SPI.begin(SCK, MISO, MOSI, SS);
@@ -314,37 +350,13 @@ void LoRaSENSE::loop() {
             Packet packet(packetBuf, packetSize);
             if (packet.getType() == RREQ_TYP) {
                 Serial.println("RREQ");
-                byte data[4]; // hop count
-                data[0] = (hopCount >> 24) & 0xFF;
-                data[1] = (hopCount >> 16) & 0xFF;
-                data[2] = (hopCount >> 8) & 0xFF;
-                data[3] = hopCount & 0xFF;
-                Packet rrep(RREP_TYP, this->id, packet.getSenderId(), this->id, data, 4);
-                rrep.send();
-                Serial.println("RREP packet sent");
-                delay(1000);
+                processRreq(packet);
             } else if (packet.getType() == RREP_TYP) {
                 Serial.println("RREP");
-                int sourceId = packet.getSourceId();
-                byte* data;
-                int data_len = packet.getData(data);
-                int hopCount = 0;
-                hopCount = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
-                if (hopCount < (this->hopCount - 1) && rssi >= -90) {
-                    this->parent_id = sourceId;
-                    this->hopCount = hopCount + 1;
-                    connected = true;
-                    Serial.printf("New parent '%s'\n", String(sourceId, HEX));
-                    Serial.printf("Hop count: %i\n", this->hopCount);
-                    funcOnConnect();
-                }
+                processRrep(packet, rssi);
             } else if (packet.getType() == DATA_TYP) {
                 Serial.println("DATA");
-                Serial.println("Adding packet to queue...");
-                byte* data;
-                int data_len = packet.getData(data);
-                Packet* newPacket = new Packet(packet.getType(), this->id, this->parent_id, packet.getSourceId(), data, data_len);
-                packetQueue.push(newPacket);
+                processData(packet);
             }
         }
         // Send packets from packet queue
