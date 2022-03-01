@@ -21,10 +21,10 @@
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 
 //Constants
-// #define NODE_ID 0xAAAAAAAA
-// #define NODE_ACCESS_TOKEN "wGkmunxRiUWWfaLkLu8q"  // Thingsboard access token for node A
-#define NODE_ID 0xBBBBBBBB
-#define NODE_ACCESS_TOKEN "u24bOqqfCGKZ4IMc0M6j"  // Thingsboard access token for node B
+#define NODE_ID 0xAAAAAAAA
+#define NODE_ACCESS_TOKEN "wGkmunxRiUWWfaLkLu8q"  // Thingsboard access token for node A
+// #define NODE_ID 0xBBBBBBBB
+// #define NODE_ACCESS_TOKEN "u24bOqqfCGKZ4IMc0M6j"  // Thingsboard access token for node B
 // #define NODE_ID 0xCCCCCCCC
 // #define NODE_ACCESS_TOKEN "XWJo5u7tAyvPGnduuqOa"  // Thingsboard access token for node C
 
@@ -55,6 +55,9 @@ void onConnect() {
     String msg = "Connected to " + parentId;
     display.print(msg);
   }
+  display.setCursor(0,20);
+  String connectTime = "(" + String(LoRaSENSE.getConnectTime()) + " ms)";
+  display.print(connectTime);
   display.display();
 }
 

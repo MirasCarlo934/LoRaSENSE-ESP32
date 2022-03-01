@@ -38,8 +38,8 @@
 #define SERVER_CA ""
 
 //Debugging (can be overridden)
-// #define ROOTABLE true
-#define ROOTABLE false
+#define ROOTABLE true
+// #define ROOTABLE false
 #define MIN_HOP 1
 
 class Packet {
@@ -100,8 +100,10 @@ class LoRaSENSE {
         std::function<void()> funcOnConnect;
 
         int hopCount = 99999999;
-        bool connected;
+        bool connected = false;
         bool rreqSent = false;
+        unsigned long startConnectTime;
+        unsigned long connectTime;
         unsigned long wifiTimeout;
         unsigned long lastRreqSent;
         unsigned long lastWifiAttempt;
@@ -124,6 +126,7 @@ class LoRaSENSE {
         int getParentId();
         int getHopCount();
         bool isConnected();
+        unsigned long getConnectTime();
 };
 
 #endif
