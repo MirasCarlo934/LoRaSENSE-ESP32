@@ -38,8 +38,8 @@
 #define SERVER_CA ""
 
 //Debugging (can be overridden)
-#define ROOTABLE true
-// #define ROOTABLE false
+// #define ROOTABLE true
+#define ROOTABLE false
 #define MIN_HOP 1
 
 class Packet {

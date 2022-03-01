@@ -387,7 +387,7 @@ void LoRaSENSE::loop() {
                 Packet* rrep = new Packet(RREP_TYP, this->id, packet.getSenderId(), this->id, data, 4);
                 // rrep.send();
                 packetQueue.push(rrep);
-                Serial.println("RREP packet sent");
+                // Serial.println("RREP packet sent");
                 delay(1000);
             } else if (packet.getType() == RREP_TYP) {
                 // processRrep(packet, rssi);
@@ -401,6 +401,7 @@ void LoRaSENSE::loop() {
                     #ifdef MIN_HOP
                     if (hopCount >= MIN_HOP-1) {
                     #endif
+                    connectTime = millis() - this->startConnectTime;
                     this->parent_id = sourceId;
                     this->hopCount = hopCount + 1;
                     connected = true;
@@ -528,11 +529,11 @@ void LoRaSENSE::loop() {
 
 // TODO: this can be simplified
 void LoRaSENSE::connectToNetwork() {
+    startConnectTime = millis();
     if (ROOTABLE) {
         for (int i = 0; i < wifi_arr_len; ++i) {
             Serial.printf("Connecting to Wi-Fi router \"%s\"...", ssid_arr[i]);
             WiFi.begin(ssid_arr[i], pwd_arr[i]);
-            startConnectTime = millis();
             while(WiFi.status() != WL_CONNECTED);
             // for (int time = 0; WiFi.status() != WL_CONNECTED && time < wifiTimeout; time += 500) {
             //     delay(500);
