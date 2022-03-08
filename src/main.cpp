@@ -29,6 +29,9 @@
 // #define NODE_ACCESS_TOKEN "XWJo5u7tAyvPGnduuqOa"  // Thingsboard access token for node C
 #define CYCLE_TIME 10000     // 10s, for testing only!!
 
+//Debugging
+#define DATA_TESTING false
+
 //Screen
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
 
@@ -95,7 +98,6 @@ void setup() {
 
   LoRaSENSE.setOnConnect(&onConnect);
   LoRaSENSE.setup();
-  Serial.println("Initialization OK!");
   display.setCursor(0,10);
   display.print("Initialization OK!");
   display.display();
@@ -104,15 +106,19 @@ void setup() {
 void loop() {
   if (millis() - lastCycle >= CYCLE_TIME) {
     lastCycle = millis(); // lastCycle must ALWAYS be reset every START of the cycle
-    long long* data = new long long[5];
-    data[0] = rand();   // pm2.5
-    data[1] = rand();   // pm10
-    data[2] = rand();   // co
-    data[3] = rand();   // temp
-    data[4] = rand();   // humid
-    Packet* dataPkt = new Packet(DATA_TYP, LoRaSENSE.getId(), LoRaSENSE.getParentId(), LoRaSENSE.getId(), reinterpret_cast<byte*>(data), sizeof(long long)*5);
-    Serial.printf("Adding test data packet %i to queue...\n", dataPkt->getPacketId());
-    LoRaSENSE.addPacketToQueue(dataPkt);
+    #ifdef DATA_TESTING
+      if (DATA_TESTING) {
+        long long* data = new long long[5];
+        data[0] = rand();   // pm2.5
+        data[1] = rand();   // pm10
+        data[2] = rand();   // co
+        data[3] = rand();   // temp
+        data[4] = rand();   // humid
+        Packet* dataPkt = new Packet(DATA_TYP, LoRaSENSE.getId(), LoRaSENSE.getParentId(), LoRaSENSE.getId(), reinterpret_cast<byte*>(data), sizeof(long long)*5);
+        Serial.printf("Adding test data packet %i to queue...\n", dataPkt->getPacketId());
+        LoRaSENSE.addPacketToQueue(dataPkt);
+      }
+    #endif
   }
   LoRaSENSE.loop();
 }

@@ -97,12 +97,15 @@ class LoRaSENSE {
         char** ssid_arr;
         char** pwd_arr;
         int wifi_arr_len;
+        int wifi_i = 0;     // iterator for ssid_arr and pwd_arr
         PacketQueue packetQueue;
         std::function<void()> funcOnConnect;
 
         int hopCount = 99999999;
+        bool connectingToWifi = false;
+        bool connectingToLora = false;
         bool connected = false;
-        bool rreqSent = false;
+        // bool rreqSent = false;
         unsigned long startConnectTime;
         unsigned long connectTime;
         unsigned long wifiTimeout;
@@ -119,8 +122,8 @@ class LoRaSENSE {
         ~LoRaSENSE();
         void setup();
         void loop();
-        void connectToNetwork();
-        void connectToLoRa();
+        void connectToWifi(char* ssid, char* pwd);
+        void connectToLora();
         void addPacketToQueue(Packet* packet);
 
         void setOnConnect(void funcOnConnect());
