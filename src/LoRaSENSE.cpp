@@ -310,27 +310,33 @@ void LoRaSENSE::processRreq(Packet* packet) {
     Serial.println("RREP packet sent");
 }
 
-void LoRaSENSE::processRrep(Packet packet, int rssi) {
-    int sourceId = packet.getSourceId();
+void LoRaSENSE::processRrep(Packet* packet, int rssi) {
+    int sourceId = packet->getSourceId();
     byte* data;
-    int data_len = packet.getData(data);
+    int data_len = packet->getData(data);
     int hopCount = 0;
     hopCount = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
+    Serial.printf("RREP from %s (hop count: %i)\n", String(sourceId, HEX), hopCount);
     if (hopCount < (this->hopCount - 1) && rssi >= -90) {
+        #ifdef MIN_HOP
+        if (hopCount >= MIN_HOP-1) {
+        #endif
+        connectTime = millis() - this->startConnectTime;
         this->parent_id = sourceId;
         this->hopCount = hopCount + 1;
+        connectingToLora = false;
         connected = true;
         Serial.printf("New parent '%s'\n", String(sourceId, HEX));
         Serial.printf("Hop count: %i\n", this->hopCount);
         funcOnConnect();
+        #ifdef MIN_HOP
+        }
+        #endif
     }
 }
 
-void LoRaSENSE::processData(Packet packet) {
-    Serial.println("Adding packet to queue...");
-    byte* data;
-    int data_len = packet.getData(data);
-    Packet* newPacket = new Packet(packet.getType(), this->id, this->parent_id, packet.getSourceId(), data, data_len);
+void LoRaSENSE::processData(Packet* packet) {
+    Packet* newPacket = new Packet(*packet, this->id, this->parent_id);
     this->addPacketToQueue(newPacket);
 }
 
@@ -428,35 +434,13 @@ void LoRaSENSE::loop() {
             Serial.println("RREQ");
             processRreq(packet);
         } else if (packet->getType() == RREP_TYP && packet->getReceiverId() == this->getId()) {
-            // processRrep(packet, rssi);
-            int sourceId = packet->getSourceId();
-            byte* data;
-            int data_len = packet->getData(data);
-            int hopCount = 0;
-            hopCount = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
-            Serial.printf("RREP from %s (hop count: %i)\n", String(sourceId, HEX), hopCount);
-            if (hopCount < (this->hopCount - 1) && rssi >= -90) {
-                #ifdef MIN_HOP
-                if (hopCount >= MIN_HOP-1) {
-                #endif
-                connectTime = millis() - this->startConnectTime;
-                this->parent_id = sourceId;
-                this->hopCount = hopCount + 1;
-                connectingToLora = false;
-                connected = true;
-                Serial.printf("New parent '%s'\n", String(sourceId, HEX));
-                Serial.printf("Hop count: %i\n", this->hopCount);
-                funcOnConnect();
-                #ifdef MIN_HOP
-                }
-                #endif
-            }
+            Serial.println("RREP");
+            processRrep(packet, rssi);
         } else if (packet->getType() == DATA_TYP && packet->getReceiverId() == this->getId()) {
             Serial.println("DATA");
-            // processData(packet);
-            Packet* newPacket = new Packet(*packet, this->id, this->parent_id);
-            this->addPacketToQueue(newPacket);
+            processData(packet);
         }
+        // TODO: packet MUST be deleted to free memory resources!!
         // delete packet;
     }
 

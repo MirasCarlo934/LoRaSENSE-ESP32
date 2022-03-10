@@ -36,8 +36,6 @@
 #define SERVER_CA ""
 
 //Debugging (can be overridden)
-// #define ROOTABLE true
-// #define ROOTABLE false
 #define MIN_HOP 1
 
 class Packet {
@@ -117,8 +115,8 @@ class LoRaSENSE {
         unsigned long nextSendAttempt = 0; // time in millis where next send attempt can be made
 
         void processRreq(Packet* packet);
-        void processRrep(Packet packet, int rssi);
-        void processData(Packet packet);
+        void processRrep(Packet* packet, int rssi);
+        void processData(Packet* packet);
     public:
         LoRaSENSE(unsigned int* node_ids, char** node_tokens, int nodes, unsigned int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, long timeout);
         ~LoRaSENSE();
