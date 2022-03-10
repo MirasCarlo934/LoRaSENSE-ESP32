@@ -39,11 +39,13 @@
 #define MIN_HOP 1
 
 class Packet {
+
     private:
         byte* payload;
         long len;
         int data_len;
         void defaultInit(byte type, int packet_id, int sender_id, int receiver_id, int source_id, byte* data, int data_len);
+   
     public:
         Packet();
         Packet(byte* payload, int len);
@@ -63,60 +65,70 @@ class Packet {
         int getData(byte* &data);
         int getLength();
         int getDataLength();
+        
 };
 
 class PacketQueueNode {
+
     public:
         PacketQueueNode* next;
         Packet* packet;
         
         PacketQueueNode(Packet* packet);
+
 };
 
 class PacketQueue {
+
     private:
         PacketQueueNode* head;
+
     public:
         PacketQueue();
         int getSize();
         bool isEmpty();
         void push(Packet* packet);
         Packet* popFront();
+
 };
 
 class LoRaSENSE {
+
     private:
         unsigned int* node_ids;
         char** node_tokens;
         int nodes;
 
+        // Network connection variables
         unsigned int id;
         int parent_id;
         char** ssid_arr;
         char** pwd_arr;
         int wifi_arr_len;
         int wifi_i = 0;     // iterator for ssid_arr and pwd_arr
-        PacketQueue packetQueue;
-        std::function<void()> funcAfterInit;
-        std::function<void()> funcOnConnecting;
-        std::function<void()> funcOnConnect;
-
         int hopCount = 99999999;
         bool connectingToWifi = false;
         bool connectingToLora = false;
         bool connected = false;
-        // bool rreqSent = false;
         unsigned long startConnectTime;
         unsigned long connectTime;
         unsigned long wifiTimeout;
         unsigned long lastRreqSent;
         unsigned long lastWifiAttempt;
-        // unsigned long lastDataSent = 0; // describes the time from which the LAST DATA CYCLE started, not the actual last data packet sent
         unsigned long nextSendAttempt = 0; // time in millis where next send attempt can be made
+        PacketQueue packetQueue;
 
+        // Callback variables
+        std::function<void()> funcAfterInit;
+        std::function<void()> funcOnConnecting;
+        std::function<void()> funcOnConnect;
+
+        // Packet processing functions
         void processRreq(Packet* packet);
         void processRrep(Packet* packet, int rssi);
         void processData(Packet* packet);
+        void sendPacketToServer(Packet* packet);
+
     public:
         LoRaSENSE(unsigned int* node_ids, char** node_tokens, int nodes, unsigned int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, long timeout);
         ~LoRaSENSE();
@@ -134,6 +146,7 @@ class LoRaSENSE {
         int getHopCount();
         bool isConnected();
         unsigned long getConnectTime();
+
 };
 
 #endif
