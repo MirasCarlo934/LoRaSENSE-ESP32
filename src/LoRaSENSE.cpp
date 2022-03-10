@@ -24,6 +24,15 @@
 //915E6 for North America
 #define BAND 433E6
 
+// empty function for initialization of callback function variables
+void empty() {
+
+}
+
+
+
+
+
 PacketQueueNode::PacketQueueNode(Packet* packet) {
     this->next = nullptr;
     this->packet = packet;
@@ -280,6 +289,9 @@ LoRaSENSE::LoRaSENSE(unsigned int* node_ids, char** node_tokens, int nodes, unsi
     this->pwd_arr = pwd_arr;
     this->wifi_arr_len = wifi_arr_len;
     this->wifiTimeout = timeout;
+    this->funcAfterInit = &empty;
+    this->funcOnConnecting = &empty;
+    this->funcOnConnect = &empty;
 }
 
 LoRaSENSE::~LoRaSENSE() {
@@ -347,6 +359,7 @@ void LoRaSENSE::setup() {
     funcAfterInit();
 
     //Begin network setup
+    funcOnConnecting();
     #ifdef MIN_HOP
     if (MIN_HOP == 0) {
     #endif

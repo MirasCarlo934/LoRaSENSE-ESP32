@@ -99,9 +99,9 @@ class LoRaSENSE {
         int wifi_arr_len;
         int wifi_i = 0;     // iterator for ssid_arr and pwd_arr
         PacketQueue packetQueue;
-        std::function<void()> funcAfterInit = {};
-        std::function<void()> funcOnConnecting = {};
-        std::function<void()> funcOnConnect = {};
+        std::function<void()> funcAfterInit;
+        std::function<void()> funcOnConnecting;
+        std::function<void()> funcOnConnect;
 
         int hopCount = 99999999;
         bool connectingToWifi = false;

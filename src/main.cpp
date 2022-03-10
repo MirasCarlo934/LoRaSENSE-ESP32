@@ -59,7 +59,7 @@ void afterInit() {
   idStr.toUpperCase();
   String displayStr = "Node " + idStr;
   display.print(displayStr);
-  
+
   display.setCursor(0,10);
   display.print("Initialization OK!");
   display.display();
@@ -68,6 +68,15 @@ void afterInit() {
 
   // This can be removed; only here to be able to display after init message
   delay(1000);
+}
+
+void onConnecting() {
+  display.clearDisplay();
+  display.setTextColor(WHITE);
+  display.setTextSize(1);
+  display.setCursor(0,0);
+  display.print("Connecting...");
+  display.display();
 }
 
 void onConnect() {
@@ -111,6 +120,7 @@ void setup() {
   }
 
   LoRaSENSE.setAfterInit(&afterInit);
+  LoRaSENSE.setOnConnecting(&onConnecting);
   LoRaSENSE.setOnConnect(&onConnect);
   LoRaSENSE.setup();
 }
