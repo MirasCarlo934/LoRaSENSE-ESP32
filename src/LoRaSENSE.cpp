@@ -370,6 +370,19 @@ void LoRaSENSE::processNack(Packet* packet) {
 }
 
 void LoRaSENSE::processData(Packet* packet) {
+    // Send DACK/NACK packet
+    Packet* ack;
+    if (packet->checkCRC()) {
+        // DACK
+        ack = new Packet(DACK_TYP, this->id, packet->getSenderId(), this->id, nullptr, 0);
+    } else {
+        // TODO: DI NA GAGAMITIN YUNG NACK
+        // If NACK is sent when a received packet does not pass CRC, then there’s a possibility 
+        // that the senderId is corrupted and a NACK can be erroneously sent to an unsuspecting node.
+    }
+    this->addPacketToQueue(ack);
+    
+    // Add received packet to queue, with updated sender and receiver IDs
     Packet* newPacket = new Packet(*packet, this->id, this->parent_id);
     this->addPacketToQueue(newPacket);
 }
@@ -566,27 +579,27 @@ void LoRaSENSE::loop() {
             packetBuf[i] = LoRa.read();
         }
         Packet* packet = new Packet(packetBuf, packetSize);
-        if (packet->checkCRC()) {
-            Serial.printf("Packet received from %s (source: %s)...", String(packet->getSenderId(), HEX), String(packet->getSourceId(), HEX));
-            if (packet->getType() == RREQ_TYP && connected) {
-                Serial.println("RREQ");
-                processRreq(packet);
-            } else if (packet->getType() == RREP_TYP && packet->getReceiverId() == this->getId()) {
-                Serial.println("RREP");
-                processRrep(packet, rssi);
-            } else if (packet->getType() == DATA_TYP && packet->getReceiverId() == this->getId()) {
-                Serial.println("DATA");
-                processData(packet);
-            } else if (packet->getType() == DACK_TYP && packet->getReceiverId() == this->getId()) {
-                Serial.println("DACK");
-                processDack(packet);
-            } else if (packet->getType() == NACK_TYP && packet->getReceiverId() == this->getId()) {
-                Serial.println("NACK");
-                processDack(packet);
-            }
-        } else {
-            Serial.println("Received erroneous packet");
+        // if (packet->checkCRC()) {
+        Serial.printf("Packet received from %s (source: %s)...", String(packet->getSenderId(), HEX), String(packet->getSourceId(), HEX));
+        if (packet->checkCRC() && packet->getType() == RREQ_TYP && connected) {
+            Serial.println("RREQ");
+            processRreq(packet);
+        } else if (packet->checkCRC() && packet->getType() == RREP_TYP && packet->getReceiverId() == this->getId()) {
+            Serial.println("RREP");
+            processRrep(packet, rssi);
+        } else if (packet->getType() == DATA_TYP && packet->getReceiverId() == this->getId()) {
+            Serial.println("DATA");
+            processData(packet);
+        } else if (packet->checkCRC() && packet->getType() == DACK_TYP && packet->getReceiverId() == this->getId()) {
+            Serial.println("DACK");
+            processDack(packet);
+        } else if (packet->checkCRC() && packet->getType() == NACK_TYP && packet->getReceiverId() == this->getId()) {
+            Serial.println("NACK");
+            processNack(packet);
         }
+        // } else {
+        //     Serial.println("Received erroneous packet");
+        // }
         // TODO: packet MUST be deleted to free memory resources!!
         delete packet;
     }

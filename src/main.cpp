@@ -2,6 +2,7 @@
   NOTES
   1. Set NODE_ID and NODE_ACCESS_TOKEN (main.cpp)
   2. Set MIN_HOP (LoRaSENSE.h)
+  3. Set DATA_TESTING to true if testing with randomized sensor values
 */
 
 #include <Arduino.h>
