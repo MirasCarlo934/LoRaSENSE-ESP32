@@ -340,6 +340,86 @@ void LoRaSENSE::processData(Packet* packet) {
     this->addPacketToQueue(newPacket);
 }
 
+void LoRaSENSE::sendPacketToServer(Packet* packet) {
+    StaticJsonDocument<256> jsonDoc;
+    byte* data;
+    int data_len = packet->getData(data);
+    // TODO: fix this, perhaps with type punning?
+    long long pm2_5 = 0, pm10 = 0, co = 0, temp = 0, humid = 0;
+    pm2_5 = pm2_5 | (data[7] << 56);
+    pm2_5 = pm2_5 | (data[6] << 48);
+    pm2_5 = pm2_5 | (data[5] << 40);
+    pm2_5 = pm2_5 | (data[4] << 32);
+    pm2_5 = pm2_5 | (data[3] << 24);
+    pm2_5 = pm2_5 | (data[2] << 16);
+    pm2_5 = pm2_5 | (data[1] << 8);
+    pm2_5 = pm2_5 | (data[0] << 0);
+    pm10 = pm10 | (data[15] << 56);
+    pm10 = pm10 | (data[14] << 48);
+    pm10 = pm10 | (data[13] << 40);
+    pm10 = pm10 | (data[12] << 32);
+    pm10 = pm10 | (data[11] << 24);
+    pm10 = pm10 | (data[10] << 16);
+    pm10 = pm10 | (data[9] << 8);
+    pm10 = pm10 | (data[8] << 0);
+    co = co | (data[23] << 56);
+    co = co | (data[22] << 48);
+    co = co | (data[21] << 40);
+    co = co | (data[20] << 32);
+    co = co | (data[19] << 24);
+    co = co | (data[18] << 16);
+    co = co | (data[17] << 8);
+    co = co | (data[16] << 0);
+    temp = temp | (data[31] << 56);
+    temp = temp | (data[30] << 48);
+    temp = temp | (data[29] << 40);
+    temp = temp | (data[28] << 32);
+    temp = temp | (data[27] << 24);
+    temp = temp | (data[26] << 16);
+    temp = temp | (data[25] << 8);
+    temp = temp | (data[24] << 0);
+    humid = humid | (data[39] << 56);
+    humid = humid | (data[38] << 48);
+    humid = humid | (data[37] << 40);
+    humid = humid | (data[36] << 32);
+    humid = humid | (data[35] << 24);
+    humid = humid | (data[34] << 16);
+    humid = humid | (data[33] << 8);
+    humid = humid | (data[32] << 0);
+    jsonDoc["packetId"] = packet->getPacketId();
+    jsonDoc["pm2_5"] = pm2_5;
+    jsonDoc["pm10"] = pm10;
+    jsonDoc["co"] = co;
+    jsonDoc["temp"] = temp;
+    jsonDoc["humid"] = humid;
+    String jsonStr = "";
+    serializeJson(jsonDoc, jsonStr);
+    // TODO: maybe this can be optimized further? (ie. initialization of HTTPClient)
+    HTTPClient httpClient;
+    String endpoint = SERVER_ENDPOINT;
+    char* accessToken;
+    for (int i = 0; i < this->nodes; ++i) {
+        if (packet->getSourceId() == node_ids[i]) {
+            accessToken = node_tokens[i];
+        }
+    }
+    endpoint.replace("$ACCESS_TOKEN", accessToken);
+    // DEBUGGING
+        // Serial.printf("%s...", jsonStr.c_str());
+    //
+    httpClient.begin(endpoint);
+    int httpResponseCode = httpClient.POST(jsonStr);
+    if (httpResponseCode == 200) {
+        Serial.println("sent");
+    } else if (httpResponseCode >= 400) {
+        Serial.printf("error(%i)\n", httpResponseCode);
+        Serial.println(httpClient.getString());
+    } else {
+        Serial.printf("fatal error(%i)\n", httpResponseCode);
+    }
+    httpClient.end();
+}
+
 void LoRaSENSE::setup() {
     //SPI LoRa pins
     SPI.begin(SCK, MISO, MOSI, SS);
@@ -445,14 +525,13 @@ void LoRaSENSE::loop() {
     }
 
     // Send packets from packet queue
-    if (/*connected && */!packetQueue.isEmpty()) {
+    // TODO: Only the RREQ packets can be sent even if the node is NOT connected
+    if (!packetQueue.isEmpty()) {
         Serial.printf("Sending %i packets in queue...\n", packetQueue.getSize());
-        // lastDataSent = millis();
         while (!packetQueue.isEmpty()) {
             Packet* packet = packetQueue.popFront();
             if (hopCount > 0 || (packet->getType() != DATA_TYP && packet->getType() != RSTA_TYP)) {
                 // Send packet via LoRa
-                // TODO: continue here!!
                 if (millis() < nextSendAttempt) {
                     break;
                 }
@@ -474,83 +553,7 @@ void LoRaSENSE::loop() {
             } else {
                 // Send packet via Wi-Fi/HTTP
                 Serial.printf("Sending packet %i to server...", packet->getPacketId());
-                StaticJsonDocument<256> jsonDoc;
-                byte* data;
-                int data_len = packet->getData(data);
-                // TODO: fix this, perhaps with type punning?
-                long long pm2_5 = 0, pm10 = 0, co = 0, temp = 0, humid = 0;
-                pm2_5 = pm2_5 | (data[7] << 56);
-                pm2_5 = pm2_5 | (data[6] << 48);
-                pm2_5 = pm2_5 | (data[5] << 40);
-                pm2_5 = pm2_5 | (data[4] << 32);
-                pm2_5 = pm2_5 | (data[3] << 24);
-                pm2_5 = pm2_5 | (data[2] << 16);
-                pm2_5 = pm2_5 | (data[1] << 8);
-                pm2_5 = pm2_5 | (data[0] << 0);
-                pm10 = pm10 | (data[15] << 56);
-                pm10 = pm10 | (data[14] << 48);
-                pm10 = pm10 | (data[13] << 40);
-                pm10 = pm10 | (data[12] << 32);
-                pm10 = pm10 | (data[11] << 24);
-                pm10 = pm10 | (data[10] << 16);
-                pm10 = pm10 | (data[9] << 8);
-                pm10 = pm10 | (data[8] << 0);
-                co = co | (data[23] << 56);
-                co = co | (data[22] << 48);
-                co = co | (data[21] << 40);
-                co = co | (data[20] << 32);
-                co = co | (data[19] << 24);
-                co = co | (data[18] << 16);
-                co = co | (data[17] << 8);
-                co = co | (data[16] << 0);
-                temp = temp | (data[31] << 56);
-                temp = temp | (data[30] << 48);
-                temp = temp | (data[29] << 40);
-                temp = temp | (data[28] << 32);
-                temp = temp | (data[27] << 24);
-                temp = temp | (data[26] << 16);
-                temp = temp | (data[25] << 8);
-                temp = temp | (data[24] << 0);
-                humid = humid | (data[39] << 56);
-                humid = humid | (data[38] << 48);
-                humid = humid | (data[37] << 40);
-                humid = humid | (data[36] << 32);
-                humid = humid | (data[35] << 24);
-                humid = humid | (data[34] << 16);
-                humid = humid | (data[33] << 8);
-                humid = humid | (data[32] << 0);
-                jsonDoc["packetId"] = packet->getPacketId();
-                jsonDoc["pm2_5"] = pm2_5;
-                jsonDoc["pm10"] = pm10;
-                jsonDoc["co"] = co;
-                jsonDoc["temp"] = temp;
-                jsonDoc["humid"] = humid;
-                String jsonStr = "";
-                serializeJson(jsonDoc, jsonStr);
-                // TODO: maybe this can be optimized further? (ie. initialization of HTTPClient)
-                HTTPClient httpClient;
-                String endpoint = SERVER_ENDPOINT;
-                char* accessToken;
-                for (int i = 0; i < this->nodes; ++i) {
-                    if (packet->getSourceId() == node_ids[i]) {
-                        accessToken = node_tokens[i];
-                    }
-                }
-                endpoint.replace("$ACCESS_TOKEN", accessToken);
-                // DEBUGGING
-                    // Serial.printf("%s...", jsonStr.c_str());
-                //
-                httpClient.begin(endpoint);
-                int httpResponseCode = httpClient.POST(jsonStr);
-                if (httpResponseCode == 200) {
-                    Serial.println("sent");
-                } else if (httpResponseCode >= 400) {
-                    Serial.printf("error(%i)\n", httpResponseCode);
-                    Serial.println(httpClient.getString());
-                } else {
-                    Serial.printf("fatal error(%i)\n", httpResponseCode);
-                }
-                httpClient.end();
+                sendPacketToServer(packet);
             }
             delete packet;
         }

@@ -36,7 +36,7 @@
 #define SERVER_CA ""
 
 //Debugging (can be overridden)
-#define MIN_HOP 1
+#define MIN_HOP 0
 
 class Packet {
 
