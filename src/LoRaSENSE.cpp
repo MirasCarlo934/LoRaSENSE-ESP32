@@ -441,7 +441,7 @@ void LoRaSENSE::loop() {
             processData(packet);
         }
         // TODO: packet MUST be deleted to free memory resources!!
-        // delete packet;
+        delete packet;
     }
 
     // Send packets from packet queue

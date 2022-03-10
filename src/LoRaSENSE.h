@@ -65,7 +65,7 @@ class Packet {
         int getData(byte* &data);
         int getLength();
         int getDataLength();
-        
+
 };
 
 class PacketQueueNode {
