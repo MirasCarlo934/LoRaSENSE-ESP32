@@ -38,7 +38,7 @@
 //Debugging (can be overridden)
 // #define ROOTABLE true
 // #define ROOTABLE false
-#define MIN_HOP 1
+#define MIN_HOP 0
 
 class Packet {
     private:
@@ -99,7 +99,9 @@ class LoRaSENSE {
         int wifi_arr_len;
         int wifi_i = 0;     // iterator for ssid_arr and pwd_arr
         PacketQueue packetQueue;
-        std::function<void()> funcOnConnect;
+        std::function<void()> funcAfterInit = {};
+        std::function<void()> funcOnConnecting = {};
+        std::function<void()> funcOnConnect = {};
 
         int hopCount = 99999999;
         bool connectingToWifi = false;
@@ -126,6 +128,8 @@ class LoRaSENSE {
         void connectToLora();
         void addPacketToQueue(Packet* packet);
 
+        void setAfterInit(void funcAfterInit());
+        void setOnConnecting(void funcOnConnecting());
         void setOnConnect(void funcOnConnect());
         unsigned int getId();
         int getParentId();

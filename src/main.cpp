@@ -21,9 +21,9 @@
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 
 //Constants
-// #define NODE_ID 0xAAAAAAAA
+#define NODE_ID 0xAAAAAAAA
 // #define NODE_ACCESS_TOKEN "wGkmunxRiUWWfaLkLu8q"  // Thingsboard access token for node A
-#define NODE_ID 0xBBBBBBBB
+// #define NODE_ID 0xBBBBBBBB
 // #define NODE_ACCESS_TOKEN "u24bOqqfCGKZ4IMc0M6j"  // Thingsboard access token for node B
 // #define NODE_ID 0xCCCCCCCC
 // #define NODE_ACCESS_TOKEN "XWJo5u7tAyvPGnduuqOa"  // Thingsboard access token for node C
@@ -49,6 +49,26 @@ char* node_tokens[nodes] = {"wGkmunxRiUWWfaLkLu8q", "u24bOqqfCGKZ4IMc0M6j", "XWJ
 unsigned long lastCycle = 0; // describes the time from which the LAST DATA CYCLE started, not the actual last data packet sent
 
 class LoRaSENSE LoRaSENSE(node_ids, node_tokens, nodes, NODE_ID, ssid_arr, pwd_arr, wifi_arr_len, WIFI_TIMEOUT);
+
+void afterInit() {
+  display.clearDisplay();
+  display.setTextColor(WHITE);
+  display.setTextSize(1);
+  display.setCursor(0,0);
+  String idStr = String(LoRaSENSE.getId(), HEX);
+  idStr.toUpperCase();
+  String displayStr = "Node " + idStr;
+  display.print(displayStr);
+  
+  display.setCursor(0,10);
+  display.print("Initialization OK!");
+  display.display();
+
+  Serial.println("Initialization OK!");
+
+  // This can be removed; only here to be able to display after init message
+  delay(1000);
+}
 
 void onConnect() {
   display.clearDisplay();
@@ -89,18 +109,10 @@ void setup() {
     Serial.println(F("SSD1306 allocation failed"));
     for(;;); // Don't proceed, loop forever
   }
-  display.clearDisplay();
-  display.setTextColor(WHITE);
-  display.setTextSize(1);
-  display.setCursor(0,0);
-  display.print("LoRaSENSE Node");
-  display.display();
 
+  LoRaSENSE.setAfterInit(&afterInit);
   LoRaSENSE.setOnConnect(&onConnect);
   LoRaSENSE.setup();
-  display.setCursor(0,10);
-  display.print("Initialization OK!");
-  display.display();
 }
 
 void loop() {

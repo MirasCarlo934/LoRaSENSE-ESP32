@@ -343,6 +343,9 @@ void LoRaSENSE::setup() {
     srand(time(0));
     rand();
 
+    // Finished with initialization
+    funcAfterInit();
+
     //Begin network setup
     #ifdef MIN_HOP
     if (MIN_HOP == 0) {
@@ -411,16 +414,13 @@ void LoRaSENSE::loop() {
         Serial.printf("Packet received from %u (source: %u)...", packet->getSenderId(), packet->getSourceId());
         if (packet->getType() == RREQ_TYP && connected) {
             Serial.println("RREQ");
-            // processRreq(packet);
             byte data[4]; // hop count
             data[0] = (hopCount >> 24) & 0xFF;
             data[1] = (hopCount >> 16) & 0xFF;
             data[2] = (hopCount >> 8) & 0xFF;
             data[3] = hopCount & 0xFF;
             Packet* rrep = new Packet(RREP_TYP, this->id, packet->getSenderId(), this->id, data, 4);
-            // rrep.send();
             this->addPacketToQueue(rrep);
-            // Serial.println("RREP packet sent");
             delay(1000);
         } else if (packet->getType() == RREP_TYP && packet->getReceiverId() == this->getId()) {
             // processRrep(packet, rssi);
@@ -589,6 +589,14 @@ void LoRaSENSE::addPacketToQueue(Packet* packet) {
     Serial.printf("Adding %s packet %u to queue...", packet->getTypeInString(), packet->getPacketId());
     this->packetQueue.push(packet);
     Serial.printf("DONE. %u packet/s currently in queue\n", this->packetQueue.getSize());
+}
+
+void LoRaSENSE::setAfterInit(void funcAfterInit()) {
+    this->funcAfterInit = std::bind(funcAfterInit);
+}
+
+void LoRaSENSE::setOnConnecting(void funcOnConnecting()) {
+    this->funcOnConnecting = std::bind(funcOnConnecting);
 }
 
 void LoRaSENSE::setOnConnect(void funcOnConnect()) {
