@@ -70,6 +70,15 @@ void PacketQueue::push(Packet* packet) {
     }
 }
 
+Packet* PacketQueue::peekFront() {
+    if (this->head != nullptr) {
+        Packet* packet = this->head->packet;
+        return packet;
+    } else {
+        throw 0;
+    }
+}
+
 Packet* PacketQueue::popFront() {
     if (this->head != nullptr) {
         Packet* packet = this->head->packet;
@@ -331,7 +340,7 @@ void LoRaSENSE::processRrep(Packet* packet, int rssi) {
     int hopCount = 0;
     hopCount = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
     Serial.printf("RREP from %s (hop count: %i)\n", String(sourceId, HEX), hopCount);
-    if (hopCount < (this->hopCount - 1) && rssi >= -90) {
+    if (hopCount < (this->hopCount - 1) && rssi >= RSSI_THRESH) {
         #ifdef MIN_HOP
         if (hopCount >= MIN_HOP-1) {
         #endif
@@ -349,9 +358,41 @@ void LoRaSENSE::processRrep(Packet* packet, int rssi) {
     }
 }
 
+void LoRaSENSE::processDack(Packet* packet) {
+    Serial.println("DACK successfully received");
+    waitingForAck = false;
+    Packet* sentPacket = packetQueue.popFront();
+    delete sentPacket;
+}
+
+void LoRaSENSE::processNack(Packet* packet) {
+    
+}
+
 void LoRaSENSE::processData(Packet* packet) {
     Packet* newPacket = new Packet(*packet, this->id, this->parent_id);
     this->addPacketToQueue(newPacket);
+}
+
+void LoRaSENSE::sendPacketViaLora(Packet* packet, bool waitForAck) {
+    bool sendSuccess = packet->send();
+    if (!sendSuccess) {
+        // TODO: extract the 369 value into a preprocessor macro
+        long rand_t = 369 + (rand() % 369);
+        nextSendAttempt = millis() + rand_t;
+        Serial.printf("Possible collision detected, rescheduling after %ums...\n", rand_t);
+        // break;
+    } else {
+        waitingForAck = waitForAck;
+        lastSendAttempt = millis();
+    }
+    if (waitForAck) {
+        Serial.printf("Packet sent, awaiting acknowledgment...\n");
+    } else {
+        Serial.println("Packet sent.");
+        packet = packetQueue.popFront();
+        delete packet;
+    }
 }
 
 void LoRaSENSE::sendPacketToServer(Packet* packet) {
@@ -490,7 +531,7 @@ void LoRaSENSE::loop() {
         }
         else if ((millis() - lastWifiAttempt) >= wifiTimeout) {
             // Wi-Fi connect failed. Connect to LoRa mesh
-            Serial.println("No valid Wi-Fi router in range. Connecting to LoRa mesh...");
+            Serial.println("No valid Wi-Fi router in range.");
             connectingToWifi = false;
             wifi_i = 0;
             WiFi.mode(WIFI_OFF);
@@ -500,6 +541,8 @@ void LoRaSENSE::loop() {
     else if (connectingToLora) {
         if ((millis() - lastRreqSent) > RREQ_TIMEOUT) {
             // Resend RREQ
+            Serial.println("No RREP received.");
+            Serial.print("Re-");
             connectToLora();
         }
     } 
@@ -534,6 +577,12 @@ void LoRaSENSE::loop() {
             } else if (packet->getType() == DATA_TYP && packet->getReceiverId() == this->getId()) {
                 Serial.println("DATA");
                 processData(packet);
+            } else if (packet->getType() == DACK_TYP && packet->getReceiverId() == this->getId()) {
+                Serial.println("DACK");
+                processDack(packet);
+            } else if (packet->getType() == NACK_TYP && packet->getReceiverId() == this->getId()) {
+                Serial.println("NACK");
+                processDack(packet);
             }
         } else {
             Serial.println("Received erroneous packet");
@@ -542,38 +591,41 @@ void LoRaSENSE::loop() {
         delete packet;
     }
 
-    // Send packets from packet queue
-    // TODO: Only the RREQ packets can be sent even if the node is NOT connected
-    if (!packetQueue.isEmpty()) {
-        Serial.printf("Sending %i packets in queue...\n", packetQueue.getSize());
-        while (!packetQueue.isEmpty()) {
-            Packet* packet = packetQueue.popFront();
-            if (hopCount > 0 || (packet->getType() != DATA_TYP && packet->getType() != RSTA_TYP)) {
-                // Send packet via LoRa
-                if (millis() < nextSendAttempt) {
-                    break;
-                }
-                if (packet->getType() != RREQ_TYP && packet->getType() != RERR_TYP) {
-                    Serial.printf("Sending %s packet %i to node %s...", packet->getTypeInString(), packet->getPacketId(), String(packet->getReceiverId(), HEX).c_str());
-                } else {
-                    Serial.printf("Broadcasting %s packet %i...", packet->getTypeInString(), packet->getPacketId());
-                }
-                bool sendSuccess = packet->send();
-                if (!sendSuccess) {
-                    // TODO: extract the 369 value into a preprocessor macro
-                    long rand_t = 369 + (rand() % 369);
-                    nextSendAttempt = millis() + rand_t;
-                    Serial.printf("packet detected, rescheduling after %ums...\n", rand_t);
-                    break;
-                } else {
-                    Serial.printf("DONE\n");
-                }
+    if (waitingForAck) { // Check if node is currently waiting for a DACK/NACK
+        if (millis() > lastSendAttempt + ACK_TIMEOUT) {
+            // ACK timeout
+            if (!resent) {
+                // Resend data packet
+                Packet* packet = packetQueue.peekFront();
+                Serial.printf("No ACK received for %u. Resending...", packet->getPacketId());
+                sendPacketViaLora(packetQueue.peekFront(), true);
             } else {
-                // Send packet via Wi-Fi/HTTP
-                Serial.printf("Sending packet %i to server...", packet->getPacketId());
-                sendPacketToServer(packet);
+                // TODO: Network reconstruction
+                Serial.println("Total data sending failure. Reconstructing route...");
             }
-            delete packet;
+        }
+    } else if (!packetQueue.isEmpty()) {
+        // Send packets from packet queue
+        // TODO: Only RREQ packets can be sent even if the node is NOT connected
+        Packet* packet = packetQueue.peekFront();
+        if (millis() >= nextSendAttempt && 
+            (hopCount > 0 || (packet->getType() != DATA_TYP && packet->getType() != RSTA_TYP))
+            ) {
+            // Send packet via LoRa
+            bool waitForAck = false;
+            if (packet->getType() != RREQ_TYP && packet->getType() != RERR_TYP) {
+                Serial.printf("Sending %s packet %i to node %s...", packet->getTypeInString(), packet->getPacketId(), String(packet->getReceiverId(), HEX).c_str());
+            } else {
+                Serial.printf("Broadcasting %s packet %i...", packet->getTypeInString(), packet->getPacketId());
+            }
+            if (packet->getType() == DATA_TYP) {
+                waitForAck = true;
+            }
+            sendPacketViaLora(packet, waitForAck);
+        } else if (hopCount == 0 && (packet->getType() == DATA_TYP || packet->getType() == RSTA_TYP)) {
+            // Send packet via Wi-Fi/HTTP
+            Serial.printf("Sending packet %i to server...", packet->getPacketId());
+            sendPacketToServer(packet);
         }
     }
 }

@@ -29,6 +29,9 @@
 #define WIFI_TIMEOUT 5000   // 5s
 #define RREQ_TIMEOUT 5000   // 5s
 #define WIFI_RECONN 60000   // 60s
+#define ACK_TIMEOUT 1000    // 1s
+
+#define RSSI_THRESH -90
 
 //Server info
 // #define SERVER_ENDPOINT "https://psgj46mwwb.execute-api.us-east-1.amazonaws.com/production/packet"
@@ -36,7 +39,7 @@
 #define SERVER_CA ""
 
 //Debugging (can be overridden)
-#define MIN_HOP 1
+#define MIN_HOP 0
 
 class Packet {
 
@@ -92,6 +95,7 @@ class PacketQueue {
         int getSize();
         bool isEmpty();
         void push(Packet* packet);
+        Packet* peekFront();
         Packet* popFront();
 
 };
@@ -104,22 +108,25 @@ class LoRaSENSE {
         int nodes;
 
         // Network connection variables
-        unsigned int id;
-        int parent_id;
+        unsigned int id = 0;
+        int parent_id = 0;
         char** ssid_arr;
         char** pwd_arr;
-        int wifi_arr_len;
-        int wifi_i = 0;     // iterator for ssid_arr and pwd_arr
+        int wifi_arr_len = 0;
+        int wifi_i = 0;                     // iterator for ssid_arr and pwd_arr
         int hopCount = 99999999;
         bool connectingToWifi = false;
         bool connectingToLora = false;
         bool connected = false;
-        unsigned long startConnectTime;
-        unsigned long connectTime;
-        unsigned long wifiTimeout;
-        unsigned long lastRreqSent;
-        unsigned long lastWifiAttempt;
+        bool waitingForAck = false;
+        bool resent = false;
+        unsigned long startConnectTime = 0;
+        unsigned long connectTime = 0;
+        unsigned long wifiTimeout = 0;
+        unsigned long lastRreqSent = 0;
+        unsigned long lastWifiAttempt = 0;
         unsigned long nextSendAttempt = 0; // time in millis where next send attempt can be made
+        unsigned long lastSendAttempt = 0;      // time to wait for a DACK/NACK
         PacketQueue packetQueue;
 
         // Callback variables
@@ -131,6 +138,9 @@ class LoRaSENSE {
         void processRreq(Packet* packet);
         void processRrep(Packet* packet, int rssi);
         void processData(Packet* packet);
+        void processDack(Packet* packet);
+        void processNack(Packet* packet);
+        void sendPacketViaLora(Packet* packet, bool waitForAck);
         void sendPacketToServer(Packet* packet);
 
     public:
