@@ -180,6 +180,20 @@ void Packet::defaultInit(byte type, int packet_id, int sender_id, int receiver_i
     this->data_len = data_len;
 }
 
+bool Packet::checkCRC() {
+    byte* raw_payload = new byte[len-2];
+    uint16_t crc_orig = (payload[2] << 8) | payload[3];
+
+    raw_payload[0] = payload[0];
+    raw_payload[1] = payload[1];
+    for (int i = 2; i < len-2; ++i) {
+        raw_payload[i] = payload[i+2];
+    }
+    uint16_t crc = crc16_CCITT(raw_payload, 6);
+
+    return crc_orig == crc;
+}
+
 bool Packet::send() {
     // Detect if there is a packet in the air first before sending
     if (LoRa.parsePacket()) {
@@ -509,16 +523,20 @@ void LoRaSENSE::loop() {
             packetBuf[i] = LoRa.read();
         }
         Packet* packet = new Packet(packetBuf, packetSize);
-        Serial.printf("Packet received from %u (source: %u)...", packet->getSenderId(), packet->getSourceId());
-        if (packet->getType() == RREQ_TYP && connected) {
-            Serial.println("RREQ");
-            processRreq(packet);
-        } else if (packet->getType() == RREP_TYP && packet->getReceiverId() == this->getId()) {
-            Serial.println("RREP");
-            processRrep(packet, rssi);
-        } else if (packet->getType() == DATA_TYP && packet->getReceiverId() == this->getId()) {
-            Serial.println("DATA");
-            processData(packet);
+        if (packet->checkCRC()) {
+            Serial.printf("Packet received from %s (source: %s)...", String(packet->getSenderId(), HEX), String(packet->getSourceId(), HEX));
+            if (packet->getType() == RREQ_TYP && connected) {
+                Serial.println("RREQ");
+                processRreq(packet);
+            } else if (packet->getType() == RREP_TYP && packet->getReceiverId() == this->getId()) {
+                Serial.println("RREP");
+                processRrep(packet, rssi);
+            } else if (packet->getType() == DATA_TYP && packet->getReceiverId() == this->getId()) {
+                Serial.println("DATA");
+                processData(packet);
+            }
+        } else {
+            Serial.println("Received erroneous packet");
         }
         // TODO: packet MUST be deleted to free memory resources!!
         delete packet;

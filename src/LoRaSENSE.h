@@ -36,7 +36,7 @@
 #define SERVER_CA ""
 
 //Debugging (can be overridden)
-#define MIN_HOP 0
+#define MIN_HOP 1
 
 class Packet {
 
@@ -52,9 +52,13 @@ class Packet {
         Packet(byte type, int sender_id, int receiver_id, int source_id, byte* data, int data_len);
         Packet(Packet packet, int sender_id, int receiver_id);  // for DATA packet forwarding
         ~Packet();
+
+        // Class methods
+        bool checkCRC();
         bool send();
         void printToSerial();
 
+        // Encapsulation
         byte getType();
         char* getTypeInString();
         int getPacketId();
