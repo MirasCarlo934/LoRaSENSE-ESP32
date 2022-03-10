@@ -299,16 +299,15 @@ LoRaSENSE::~LoRaSENSE() {
     delete[] pwd_arr;
 }
 
-void LoRaSENSE::processRreq(Packet packet) {
+void LoRaSENSE::processRreq(Packet* packet) {
     byte data[4]; // hop count
     data[0] = (hopCount >> 24) & 0xFF;
     data[1] = (hopCount >> 16) & 0xFF;
     data[2] = (hopCount >> 8) & 0xFF;
     data[3] = hopCount & 0xFF;
-    Packet rrep(RREP_TYP, this->id, packet.getSenderId(), this->id, data, 4);
-    rrep.send();
+    Packet* rrep = new Packet(RREP_TYP, this->id, packet->getSenderId(), this->id, data, 4);
+    this->addPacketToQueue(rrep);
     Serial.println("RREP packet sent");
-    delay(1000);
 }
 
 void LoRaSENSE::processRrep(Packet packet, int rssi) {
@@ -427,14 +426,7 @@ void LoRaSENSE::loop() {
         Serial.printf("Packet received from %u (source: %u)...", packet->getSenderId(), packet->getSourceId());
         if (packet->getType() == RREQ_TYP && connected) {
             Serial.println("RREQ");
-            byte data[4]; // hop count
-            data[0] = (hopCount >> 24) & 0xFF;
-            data[1] = (hopCount >> 16) & 0xFF;
-            data[2] = (hopCount >> 8) & 0xFF;
-            data[3] = hopCount & 0xFF;
-            Packet* rrep = new Packet(RREP_TYP, this->id, packet->getSenderId(), this->id, data, 4);
-            this->addPacketToQueue(rrep);
-            delay(1000);
+            processRreq(packet);
         } else if (packet->getType() == RREP_TYP && packet->getReceiverId() == this->getId()) {
             // processRrep(packet, rssi);
             int sourceId = packet->getSourceId();
