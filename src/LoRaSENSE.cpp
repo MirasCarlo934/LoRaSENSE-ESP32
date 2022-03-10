@@ -111,10 +111,10 @@ Packet::Packet(byte type, int sender_id, int receiver_id, int source_id, byte* d
     defaultInit(type, rand(), sender_id, receiver_id, source_id, data, data_len);
 }
 
-Packet::Packet(Packet packet, int sender_id, int receiver_id) {
+Packet::Packet(Packet* packet, int sender_id, int receiver_id) {
     byte* data;
-    int data_len = packet.getData(data);
-    defaultInit(packet.getType(), packet.getPacketId(), sender_id, receiver_id, packet.getSourceId(), data, data_len);
+    int data_len = packet->getData(data);
+    defaultInit(packet->getType(), packet->getPacketId(), sender_id, receiver_id, packet->getSourceId(), data, data_len);
 }
 
 Packet::~Packet() {
@@ -358,6 +358,24 @@ void LoRaSENSE::processRrep(Packet* packet, int rssi) {
     }
 }
 
+void LoRaSENSE::processData(Packet* packet) {
+    // Send DACK/NACK packet
+    Packet* ack;
+    if (packet->checkCRC()) {
+        // DACKs
+        ack = new Packet(DACK_TYP, this->id, packet->getSenderId(), 0, nullptr, 0);
+    } else {
+        // TODO: DI NA GAGAMITIN YUNG NACK
+        // If NACK is sent when a received packet does not pass CRC, then there’s a possibility 
+        // that the senderId is corrupted and a NACK can be erroneously sent to an unsuspecting node.
+    }
+    this->addPacketToQueue(ack);
+
+    // Add received packet to queue, with updated sender and receiver IDs
+    Packet* newPacket = new Packet(packet, this->id, this->parent_id);
+    this->addPacketToQueue(newPacket);
+}
+
 void LoRaSENSE::processDack(Packet* packet) {
     Serial.println("DACK successfully received");
     waitingForAck = false;
@@ -367,24 +385,6 @@ void LoRaSENSE::processDack(Packet* packet) {
 
 void LoRaSENSE::processNack(Packet* packet) {
     
-}
-
-void LoRaSENSE::processData(Packet* packet) {
-    // Send DACK/NACK packet
-    Packet* ack;
-    if (packet->checkCRC()) {
-        // DACK
-        ack = new Packet(DACK_TYP, this->id, packet->getSenderId(), this->id, nullptr, 0);
-    } else {
-        // TODO: DI NA GAGAMITIN YUNG NACK
-        // If NACK is sent when a received packet does not pass CRC, then there’s a possibility 
-        // that the senderId is corrupted and a NACK can be erroneously sent to an unsuspecting node.
-    }
-    this->addPacketToQueue(ack);
-    
-    // Add received packet to queue, with updated sender and receiver IDs
-    Packet* newPacket = new Packet(*packet, this->id, this->parent_id);
-    this->addPacketToQueue(newPacket);
 }
 
 void LoRaSENSE::sendPacketViaLora(Packet* packet, bool waitForAck) {
@@ -403,7 +403,7 @@ void LoRaSENSE::sendPacketViaLora(Packet* packet, bool waitForAck) {
         Serial.printf("Packet sent, awaiting acknowledgment...\n");
     } else {
         Serial.println("Packet sent.");
-        packet = packetQueue.popFront();
+        packetQueue.popFront();
         delete packet;
     }
 }
@@ -479,6 +479,8 @@ void LoRaSENSE::sendPacketToServer(Packet* packet) {
     int httpResponseCode = httpClient.POST(jsonStr);
     if (httpResponseCode == 200) {
         Serial.println("sent");
+        packetQueue.popFront();
+        delete packet;
     } else if (httpResponseCode >= 400) {
         Serial.printf("error(%i)\n", httpResponseCode);
         Serial.println(httpClient.getString());
@@ -571,37 +573,39 @@ void LoRaSENSE::loop() {
     }
 
     // Continuous listen for packets
-    int packetSize = LoRa.parsePacket();
-    if (packetSize) {
-        int rssi = LoRa.packetRssi();
-        byte packetBuf[packetSize];
-        for (int i = 0; LoRa.available(); ++i) {
-            packetBuf[i] = LoRa.read();
+    if (!connectingToWifi) {
+        int packetSize = LoRa.parsePacket();
+        if (packetSize) {
+            int rssi = LoRa.packetRssi();
+            byte packetBuf[packetSize];
+            for (int i = 0; LoRa.available(); ++i) {
+                packetBuf[i] = LoRa.read();
+            }
+            Packet* packet = new Packet(packetBuf, packetSize);
+            // if (packet->checkCRC()) {
+            Serial.printf("Packet %u received from %s (source: %s)...", packet->getPacketId(), String(packet->getSenderId(), HEX), String(packet->getSourceId(), HEX));
+            if (packet->checkCRC() && packet->getType() == RREQ_TYP && connected) {
+                Serial.println("RREQ");
+                processRreq(packet);
+            } else if (packet->checkCRC() && packet->getType() == RREP_TYP && packet->getReceiverId() == this->getId()) {
+                Serial.println("RREP");
+                processRrep(packet, rssi);
+            } else if (packet->getType() == DATA_TYP && packet->getReceiverId() == this->getId()) {
+                Serial.println("DATA");
+                processData(packet);
+            } else if (packet->checkCRC() && packet->getType() == DACK_TYP && packet->getReceiverId() == this->getId()) {
+                Serial.println("DACK");
+                processDack(packet);
+            } else if (packet->checkCRC() && packet->getType() == NACK_TYP && packet->getReceiverId() == this->getId()) {
+                Serial.println("NACK");
+                processNack(packet);
+            }
+            // } else {
+            //     Serial.println("Received erroneous packet");
+            // }
+            // TODO: packet MUST be deleted to free memory resources!!
+            delete packet;
         }
-        Packet* packet = new Packet(packetBuf, packetSize);
-        // if (packet->checkCRC()) {
-        Serial.printf("Packet received from %s (source: %s)...", String(packet->getSenderId(), HEX), String(packet->getSourceId(), HEX));
-        if (packet->checkCRC() && packet->getType() == RREQ_TYP && connected) {
-            Serial.println("RREQ");
-            processRreq(packet);
-        } else if (packet->checkCRC() && packet->getType() == RREP_TYP && packet->getReceiverId() == this->getId()) {
-            Serial.println("RREP");
-            processRrep(packet, rssi);
-        } else if (packet->getType() == DATA_TYP && packet->getReceiverId() == this->getId()) {
-            Serial.println("DATA");
-            processData(packet);
-        } else if (packet->checkCRC() && packet->getType() == DACK_TYP && packet->getReceiverId() == this->getId()) {
-            Serial.println("DACK");
-            processDack(packet);
-        } else if (packet->checkCRC() && packet->getType() == NACK_TYP && packet->getReceiverId() == this->getId()) {
-            Serial.println("NACK");
-            processNack(packet);
-        }
-        // } else {
-        //     Serial.println("Received erroneous packet");
-        // }
-        // TODO: packet MUST be deleted to free memory resources!!
-        delete packet;
     }
 
     if (waitingForAck) { // Check if node is currently waiting for a DACK/NACK
@@ -637,7 +641,7 @@ void LoRaSENSE::loop() {
             sendPacketViaLora(packet, waitForAck);
         } else if (hopCount == 0 && (packet->getType() == DATA_TYP || packet->getType() == RSTA_TYP)) {
             // Send packet via Wi-Fi/HTTP
-            Serial.printf("Sending packet %i to server...", packet->getPacketId());
+            Serial.printf("Sending %s packet %i to server...", packet->getTypeInString(), packet->getPacketId());
             sendPacketToServer(packet);
         }
     }
