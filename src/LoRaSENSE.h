@@ -28,8 +28,9 @@
 #define WIFI_TIMEOUT 30000  // 30s
 #define RREQ_TIMEOUT 5000   // 5s
 #define WIFI_RECONN 60000   // 60s
-#define ACK_TIMEOUT 1000    // 1s
-// #define ACK_TIMEOUT 5000    // 5s
+// #define ACK_TIMEOUT 1000    // 1s
+#define ACK_TIMEOUT 5000    // 5s
+#define RESEND_MAX_TIME 369
 
 #define RSSI_THRESH -90
 
@@ -39,7 +40,7 @@
 #define SERVER_CA ""
 
 //Debugging (can be overridden)
-#define MIN_HOP 1
+#define MIN_HOP 0
 
 class Packet {
 

@@ -380,6 +380,7 @@ void LoRaSENSE::processData(Packet* packet) {
 void LoRaSENSE::processDack(Packet* packet) {
     Serial.println("DACK successfully received");
     waitingForAck = false;
+    resent = false;
     Packet* sentPacket = packetQueue.popFront();
     delete sentPacket;
 }
@@ -391,7 +392,7 @@ void LoRaSENSE::sendPacketViaLora(Packet* packet, bool waitForAck) {
         lastSendAttempt = millis();
     } else {
         // TODO: extract the 369 value into a preprocessor macro
-        long rand_t = 369 + (rand() % 369);
+        long rand_t = (rand() % RESEND_MAX_TIME);
         nextSendAttempt = millis() + rand_t;
         Serial.printf("Possible collision detected, rescheduling after %ums...\n", rand_t);
     }
@@ -576,7 +577,9 @@ void LoRaSENSE::loop() {
             }
             Packet* packet = new Packet(packetBuf, packetSize);
             if (packet->checkCRC()) {
-                Serial.printf("%s packet %u received from %s (source: %s)...\n", packet->getTypeInString(), packet->getPacketId(), String(packet->getSenderId(), HEX), String(packet->getSourceId(), HEX));
+                if (packet->getReceiverId() == this->id) {
+                    Serial.printf("%s packet %u received from %s (source: %s)...\n", packet->getTypeInString(), packet->getPacketId(), String(packet->getSenderId(), HEX), String(packet->getSourceId(), HEX));
+                }
                 if (packet->getType() == RREQ_TYP && connected) {
                     processRreq(packet);
                 } else if (packet->getType() == RREP_TYP && packet->getReceiverId() == this->getId()) {
@@ -608,7 +611,7 @@ void LoRaSENSE::loop() {
                 Serial.println("Total data sending failure. Reconstructing route...");
 
                 // DEBUGGING
-                    delay(1000);
+                    delay(5000);
                 //
             }
         }
