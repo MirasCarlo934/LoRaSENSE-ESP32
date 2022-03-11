@@ -106,7 +106,7 @@ Packet::Packet(byte* payload, int len) {
     }
     this->payload = newPayload;
     this->len = len;
-    if (getType() == RREQ_TYP || getType() == RERR_TYP || getType() == DACK_TYP || getType() == NACK_TYP) {
+    if (getType() == RREQ_TYP || getType() == RERR_TYP || getType() == DACK_TYP) {
         this->data_len = 0;
     } else {
         this->data_len = this->len - 20;
@@ -131,7 +131,7 @@ void Packet::defaultInit(byte type, int packet_id, int sender_id, int receiver_i
     int len = 12 + data_len; // minimum header (RREQ/RERR) + data
     if (type != RREQ_TYP && type != RERR_TYP) {
         len += 4;
-        if (type != DACK_TYP && type != NACK_TYP) {
+        if (type != DACK_TYP) {
             len += 4;
         }
     }
@@ -168,7 +168,7 @@ void Packet::defaultInit(byte type, int packet_id, int sender_id, int receiver_i
         payload[14] = (receiver_id >> 8) & 0xFF;
         payload[15] = receiver_id & 0xFF;
         // len += 4;
-        if (type != DACK_TYP && type != NACK_TYP) {
+        if (type != DACK_TYP) {
             raw_payload[14] = (source_id >> 24) & 0xFF;
             raw_payload[15] = (source_id >> 16) & 0xFF;
             raw_payload[16] = (source_id >> 8) & 0xFF;
@@ -245,7 +245,6 @@ char* Packet::getTypeInString() {
         case RERR_TYP: return "RERR";
         case DATA_TYP: return "DATA";
         case DACK_TYP: return "DACK";
-        case NACK_TYP: return "NACK";
         case RSTA_TYP: return "RSTA";
     }
 }
@@ -366,16 +365,12 @@ void LoRaSENSE::processRrep(Packet* packet, int rssi) {
 
 void LoRaSENSE::processData(Packet* packet) {
     // Send DACK/NACK packet
-    Packet* ack;
+    Packet* dack;
     if (packet->checkCRC()) {
         // DACKs
-        ack = new Packet(DACK_TYP, this->id, packet->getSenderId(), 0, nullptr, 0);
-    } else {
-        // TODO: DI NA GAGAMITIN YUNG NACK
-        // If NACK is sent when a received packet does not pass CRC, then there’s a possibility 
-        // that the senderId is corrupted and a NACK can be erroneously sent to an unsuspecting node.
+        dack = new Packet(DACK_TYP, this->id, packet->getSenderId(), 0, nullptr, 0);
     }
-    this->pushPacketToQueueFront(ack);
+    this->pushPacketToQueueFront(dack);
 
     // Add received packet to queue, with updated sender and receiver IDs
     Packet* newPacket = new Packet(packet, this->id, this->parent_id);
@@ -387,10 +382,6 @@ void LoRaSENSE::processDack(Packet* packet) {
     waitingForAck = false;
     Packet* sentPacket = packetQueue.popFront();
     delete sentPacket;
-}
-
-void LoRaSENSE::processNack(Packet* packet) {
-    
 }
 
 void LoRaSENSE::sendPacketViaLora(Packet* packet, bool waitForAck) {
@@ -594,8 +585,6 @@ void LoRaSENSE::loop() {
                     processData(packet);
                 } else if (packet->getType() == DACK_TYP && packet->getReceiverId() == this->getId()) {
                     processDack(packet);
-                } else if (packet->getType() == NACK_TYP && packet->getReceiverId() == this->getId()) {
-                    processNack(packet);
                 }
             } else {
                 Serial.println("Received erroneous packet");

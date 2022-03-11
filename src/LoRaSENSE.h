@@ -23,7 +23,6 @@
 #define RERR_TYP 0b010
 #define DATA_TYP 0b011
 #define DACK_TYP 0b100
-#define NACK_TYP 0b101
 #define RSTA_TYP 0b111
 
 #define WIFI_TIMEOUT 30000  // 30s
@@ -141,7 +140,6 @@ class LoRaSENSE {
         void processRrep(Packet* packet, int rssi);
         void processData(Packet* packet);
         void processDack(Packet* packet);
-        void processNack(Packet* packet);
         void sendPacketViaLora(Packet* packet, bool waitForAck);
         void sendPacketToServer(Packet* packet);
 
