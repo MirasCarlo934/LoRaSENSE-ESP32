@@ -26,10 +26,11 @@
 #define NACK_TYP 0b101
 #define RSTA_TYP 0b111
 
-#define WIFI_TIMEOUT 5000   // 5s
+#define WIFI_TIMEOUT 30000  // 30s
 #define RREQ_TIMEOUT 5000   // 5s
 #define WIFI_RECONN 60000   // 60s
 #define ACK_TIMEOUT 1000    // 1s
+// #define ACK_TIMEOUT 5000    // 5s
 
 #define RSSI_THRESH -90
 
@@ -151,7 +152,8 @@ class LoRaSENSE {
         void loop();
         void connectToWifi(char* ssid, char* pwd);
         void connectToLora();
-        void addPacketToQueue(Packet* packet);
+        void pushPacketToQueue(Packet* packet);
+        void pushPacketToQueueFront(Packet* packet);
 
         void setAfterInit(void funcAfterInit());
         void setOnConnecting(void funcOnConnecting());

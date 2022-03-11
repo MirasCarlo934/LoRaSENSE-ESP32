@@ -131,7 +131,7 @@ void loop() {
   if (millis() - lastCycle >= CYCLE_TIME) {
     lastCycle = millis(); // lastCycle must ALWAYS be reset every START of the cycle
     #ifdef DATA_TESTING
-      if (DATA_TESTING) {
+      if (DATA_TESTING && LoRaSENSE.isConnected()) {
         long long* data = new long long[5];
         data[0] = rand();   // pm2.5
         data[1] = rand();   // pm10
@@ -140,7 +140,7 @@ void loop() {
         data[4] = rand();   // humid
         Packet* dataPkt = new Packet(DATA_TYP, LoRaSENSE.getId(), LoRaSENSE.getParentId(), LoRaSENSE.getId(), reinterpret_cast<byte*>(data), sizeof(long long)*5);
         Serial.printf("Adding test data packet %i to queue...\n", dataPkt->getPacketId());
-        LoRaSENSE.addPacketToQueue(dataPkt);
+        LoRaSENSE.pushPacketToQueue(dataPkt);
       }
     #endif
   }

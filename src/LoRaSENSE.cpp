@@ -335,7 +335,7 @@ void LoRaSENSE::processRreq(Packet* packet) {
     data[2] = (hopCount >> 8) & 0xFF;
     data[3] = hopCount & 0xFF;
     Packet* rrep = new Packet(RREP_TYP, this->id, packet->getSenderId(), this->id, data, 4);
-    this->addPacketToQueue(rrep);
+    this->pushPacketToQueue(rrep);
     Serial.println("RREP packet sent");
 }
 
@@ -375,11 +375,11 @@ void LoRaSENSE::processData(Packet* packet) {
         // If NACK is sent when a received packet does not pass CRC, then there’s a possibility 
         // that the senderId is corrupted and a NACK can be erroneously sent to an unsuspecting node.
     }
-    this->addPacketToQueue(ack);
+    this->pushPacketToQueueFront(ack);
 
     // Add received packet to queue, with updated sender and receiver IDs
     Packet* newPacket = new Packet(packet, this->id, this->parent_id);
-    this->addPacketToQueue(newPacket);
+    this->pushPacketToQueue(newPacket);
 }
 
 void LoRaSENSE::processDack(Packet* packet) {
@@ -395,15 +395,14 @@ void LoRaSENSE::processNack(Packet* packet) {
 
 void LoRaSENSE::sendPacketViaLora(Packet* packet, bool waitForAck) {
     bool sendSuccess = packet->send();
-    if (!sendSuccess) {
+    if (sendSuccess) {
+        waitingForAck = waitForAck;
+        lastSendAttempt = millis();
+    } else {
         // TODO: extract the 369 value into a preprocessor macro
         long rand_t = 369 + (rand() % 369);
         nextSendAttempt = millis() + rand_t;
         Serial.printf("Possible collision detected, rescheduling after %ums...\n", rand_t);
-        // break;
-    } else {
-        waitingForAck = waitForAck;
-        lastSendAttempt = millis();
     }
     if (waitForAck) {
         Serial.printf("Packet sent, awaiting acknowledgment...\n");
@@ -478,9 +477,6 @@ void LoRaSENSE::sendPacketToServer(Packet* packet) {
         }
     }
     endpoint.replace("$ACCESS_TOKEN", accessToken);
-    // DEBUGGING
-        // Serial.printf("%s...", jsonStr.c_str());
-    //
     httpClient.begin(endpoint);
     int httpResponseCode = httpClient.POST(jsonStr);
     if (httpResponseCode == 200) {
@@ -617,10 +613,14 @@ void LoRaSENSE::loop() {
                 resent = true;
                 Packet* packet = packetQueue.peekFront();
                 Serial.printf("No ACK received for %u. Resending...", packet->getPacketId());
-                sendPacketViaLora(packetQueue.peekFront(), true);
+                sendPacketViaLora(packet, true);
             } else {
                 // TODO: Network reconstruction
                 Serial.println("Total data sending failure. Reconstructing route...");
+
+                // DEBUGGING
+                    delay(1000);
+                //
             }
         }
     } else if (!packetQueue.isEmpty()) {
@@ -628,7 +628,10 @@ void LoRaSENSE::loop() {
         // TODO: Only RREQ packets can be sent even if the node is NOT connected
         Packet* packet = packetQueue.peekFront();
         if (millis() >= nextSendAttempt && 
-            (hopCount > 0 && packet->getType() != DATA_TYP && packet->getType() != RSTA_TYP)
+                (
+                    connectingToLora && packet->getType() == RREQ_TYP || 
+                    (connected && (hopCount > 0 || (packet->getType() != DATA_TYP && packet->getType() != RSTA_TYP)))
+                )
             ) {
             // Send packet via LoRa
             bool waitForAck = false;
@@ -661,13 +664,19 @@ void LoRaSENSE::connectToWifi(char* ssid, char* pwd) {
 void LoRaSENSE::connectToLora() {
     Serial.println("Connecting to LoRa mesh...");
     Packet* rreq = new Packet(RREQ_TYP, id, 0, 0, nullptr, 0);
-    this->addPacketToQueue(rreq);
+    this->pushPacketToQueueFront(rreq);
     lastRreqSent = millis();
     connectingToLora = true;
 }
 
-void LoRaSENSE::addPacketToQueue(Packet* packet) {
-    Serial.printf("Adding %s packet %u to queue...", packet->getTypeInString(), packet->getPacketId());
+void LoRaSENSE::pushPacketToQueue(Packet* packet) {
+    Serial.printf("Pushing %s packet %u to queue...", packet->getTypeInString(), packet->getPacketId());
+    this->packetQueue.push(packet);
+    Serial.printf("DONE. %u packet/s currently in queue\n", this->packetQueue.getSize());
+}
+
+void LoRaSENSE::pushPacketToQueueFront(Packet* packet) {
+    Serial.printf("Pushing %s packet %u to front of queue...", packet->getTypeInString(), packet->getPacketId());
     this->packetQueue.pushFront(packet);
     Serial.printf("DONE. %u packet/s currently in queue\n", this->packetQueue.getSize());
 }
