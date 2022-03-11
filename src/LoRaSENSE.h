@@ -40,7 +40,7 @@
 #define SERVER_CA ""
 
 //Debugging (can be overridden)
-#define MIN_HOP 0
+#define MIN_HOP 1
 
 class Packet {
 
@@ -116,7 +116,7 @@ class LoRaSENSE {
         char** pwd_arr;
         int wifi_arr_len = 0;
         int wifi_i = 0;                     // iterator for ssid_arr and pwd_arr
-        int hopCount = 99999999;
+        int hopCount = INT_MAX;
         bool connectingToWifi = false;
         bool connectingToLora = false;
         bool connected = false;
@@ -147,10 +147,12 @@ class LoRaSENSE {
     public:
         LoRaSENSE(unsigned int* node_ids, char** node_tokens, int nodes, unsigned int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, long timeout);
         ~LoRaSENSE();
+
         void setup();
         void loop();
         void connectToWifi(char* ssid, char* pwd);
         void connectToLora();
+        void reconnect();
         void pushPacketToQueue(Packet* packet);
         void pushPacketToQueueFront(Packet* packet);
 

@@ -344,7 +344,7 @@ void LoRaSENSE::processRrep(Packet* packet, int rssi) {
     int data_len = packet->getData(data);
     int hopCount = 0;
     hopCount = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
-    Serial.printf("RREP from %s (hop count: %i)\n", String(sourceId, HEX), hopCount);
+    Serial.printf("RREP from %s (hop count: %i, RSSI: %i)\n", String(sourceId, HEX), hopCount, rssi);
     if (hopCount < (this->hopCount - 1) && rssi >= RSSI_THRESH) {
         #ifdef MIN_HOP
         if (hopCount >= MIN_HOP-1) {
@@ -608,16 +608,12 @@ void LoRaSENSE::loop() {
                 sendPacketViaLora(packet, true);
             } else {
                 // TODO: Network reconstruction
-                Serial.println("Total data sending failure. Reconstructing route...");
-
-                // DEBUGGING
-                    delay(5000);
-                //
+                Serial.println("Total data sending failure.");
+                reconnect();
             }
         }
     } else if (!packetQueue.isEmpty()) {
         // Send packets from packet queue
-        // TODO: Only RREQ packets can be sent even if the node is NOT connected
         Packet* packet = packetQueue.peekFront();
         if (millis() >= nextSendAttempt && 
                 (
@@ -659,6 +655,46 @@ void LoRaSENSE::connectToLora() {
     this->pushPacketToQueueFront(rreq);
     lastRreqSent = millis();
     connectingToLora = true;
+}
+
+void LoRaSENSE::reconnect() {
+    Serial.println("Reconnecting...");
+    
+    // Broadcast RERR packet
+    Packet* rerr = new Packet(RERR_TYP, this->id, 0, 0, nullptr, 0);
+    this->pushPacketToQueueFront(rerr);
+
+    // Reconnection process
+    
+    // Not all of these are needed to be reset, but I did just to be on the safe side
+    hopCount = INT_MAX;
+    connectingToWifi = false;
+    connectingToLora = false;
+    connected = false;
+    waitingForAck = false;
+    resent = false;
+    startConnectTime = 0;
+    connectTime = 0;
+    wifiTimeout = 0;
+    lastRreqSent = 0;
+    lastWifiAttempt = 0;
+    nextSendAttempt = 0;
+    lastSendAttempt = 0;
+    //
+
+    funcOnConnecting();
+    #ifdef MIN_HOP
+    if (MIN_HOP == 0) {
+    #endif
+        connectToWifi(ssid_arr[0], pwd_arr[0]);
+        startConnectTime = millis();
+        ++wifi_i;
+    #ifdef MIN_HOP
+    } else {
+        connectToLora();
+        startConnectTime = millis();
+    }
+    #endif
 }
 
 void LoRaSENSE::pushPacketToQueue(Packet* packet) {
