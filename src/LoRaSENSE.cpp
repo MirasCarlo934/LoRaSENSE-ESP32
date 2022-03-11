@@ -377,6 +377,11 @@ void LoRaSENSE::processData(Packet* packet) {
     this->pushPacketToQueue(newPacket);
 }
 
+void LoRaSENSE::processRerr(Packet* packet) {
+    Serial.println("ROUTE ERROR packet received");
+    reconnect();
+}
+
 void LoRaSENSE::processDack(Packet* packet, int rssi) {
     if (rssi < RSSI_THRESH) {
         Serial.println("RSSI below threshold");
@@ -587,6 +592,8 @@ void LoRaSENSE::loop() {
                 }
                 if (packet->getType() == RREQ_TYP && connected) {
                     processRreq(packet);
+                } else if (packet->getType() == RERR_TYP && connected) {
+                    processRerr(packet);
                 } else if (packet->getType() == RREP_TYP && packet->getReceiverId() == this->getId()) {
                     processRrep(packet, rssi);
                 } else if (packet->getType() == DATA_TYP && packet->getReceiverId() == this->getId()) {

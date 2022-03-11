@@ -40,7 +40,7 @@
 #define SERVER_CA ""
 
 //Debugging (can be overridden)
-#define MIN_HOP 1
+#define MIN_HOP 2
 
 class Packet {
 
@@ -139,6 +139,7 @@ class LoRaSENSE {
         // Packet processing functions
         void processRreq(Packet* packet);
         void processRrep(Packet* packet, int rssi);
+        void processRerr(Packet* packet);
         void processData(Packet* packet);
         void processDack(Packet* packet, int rssi);
         void sendPacketViaLora(Packet* packet, bool waitForAck);
