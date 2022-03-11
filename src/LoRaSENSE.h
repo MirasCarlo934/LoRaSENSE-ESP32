@@ -140,7 +140,7 @@ class LoRaSENSE {
         void processRreq(Packet* packet);
         void processRrep(Packet* packet, int rssi);
         void processData(Packet* packet);
-        void processDack(Packet* packet);
+        void processDack(Packet* packet, int rssi);
         void sendPacketViaLora(Packet* packet, bool waitForAck);
         void sendPacketToServer(Packet* packet);
 

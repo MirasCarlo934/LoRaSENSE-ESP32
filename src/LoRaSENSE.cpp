@@ -377,7 +377,11 @@ void LoRaSENSE::processData(Packet* packet) {
     this->pushPacketToQueue(newPacket);
 }
 
-void LoRaSENSE::processDack(Packet* packet) {
+void LoRaSENSE::processDack(Packet* packet, int rssi) {
+    if (rssi < RSSI_THRESH) {
+        Serial.println("RSSI below threshold");
+        reconnect();
+    }
     Serial.println("DACK successfully received");
     waitingForAck = false;
     resent = false;
@@ -578,7 +582,8 @@ void LoRaSENSE::loop() {
             Packet* packet = new Packet(packetBuf, packetSize);
             if (packet->checkCRC()) {
                 if (packet->getReceiverId() == this->id) {
-                    Serial.printf("%s packet %u received from %s (source: %s)...\n", packet->getTypeInString(), packet->getPacketId(), String(packet->getSenderId(), HEX), String(packet->getSourceId(), HEX));
+                    Serial.printf("%s packet %u received from %s (source: %s, RSSI: %i)...\n", 
+                        packet->getTypeInString(), packet->getPacketId(), String(packet->getSenderId(), HEX), String(packet->getSourceId(), HEX), rssi);
                 }
                 if (packet->getType() == RREQ_TYP && connected) {
                     processRreq(packet);
@@ -587,7 +592,7 @@ void LoRaSENSE::loop() {
                 } else if (packet->getType() == DATA_TYP && packet->getReceiverId() == this->getId()) {
                     processData(packet);
                 } else if (packet->getType() == DACK_TYP && packet->getReceiverId() == this->getId()) {
-                    processDack(packet);
+                    processDack(packet, rssi);
                 }
             } else {
                 Serial.println("Received erroneous packet");
