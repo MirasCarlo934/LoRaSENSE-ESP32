@@ -70,6 +70,12 @@ void PacketQueue::push(Packet* packet) {
     }
 }
 
+void PacketQueue::pushFront(Packet* packet) {
+    PacketQueueNode* newNode = new PacketQueueNode(packet);
+    newNode->next = this->head;
+    this->head = newNode;
+}
+
 Packet* PacketQueue::peekFront() {
     if (this->head != nullptr) {
         Packet* packet = this->head->packet;
@@ -582,27 +588,22 @@ void LoRaSENSE::loop() {
                 packetBuf[i] = LoRa.read();
             }
             Packet* packet = new Packet(packetBuf, packetSize);
-            // if (packet->checkCRC()) {
-            Serial.printf("Packet %u received from %s (source: %s)...", packet->getPacketId(), String(packet->getSenderId(), HEX), String(packet->getSourceId(), HEX));
-            if (packet->checkCRC() && packet->getType() == RREQ_TYP && connected) {
-                Serial.println("RREQ");
-                processRreq(packet);
-            } else if (packet->checkCRC() && packet->getType() == RREP_TYP && packet->getReceiverId() == this->getId()) {
-                Serial.println("RREP");
-                processRrep(packet, rssi);
-            } else if (packet->getType() == DATA_TYP && packet->getReceiverId() == this->getId()) {
-                Serial.println("DATA");
-                processData(packet);
-            } else if (packet->checkCRC() && packet->getType() == DACK_TYP && packet->getReceiverId() == this->getId()) {
-                Serial.println("DACK");
-                processDack(packet);
-            } else if (packet->checkCRC() && packet->getType() == NACK_TYP && packet->getReceiverId() == this->getId()) {
-                Serial.println("NACK");
-                processNack(packet);
+            if (packet->checkCRC()) {
+                Serial.printf("%s packet %u received from %s (source: %s)...\n", packet->getTypeInString(), packet->getPacketId(), String(packet->getSenderId(), HEX), String(packet->getSourceId(), HEX));
+                if (packet->getType() == RREQ_TYP && connected) {
+                    processRreq(packet);
+                } else if (packet->getType() == RREP_TYP && packet->getReceiverId() == this->getId()) {
+                    processRrep(packet, rssi);
+                } else if (packet->getType() == DATA_TYP && packet->getReceiverId() == this->getId()) {
+                    processData(packet);
+                } else if (packet->getType() == DACK_TYP && packet->getReceiverId() == this->getId()) {
+                    processDack(packet);
+                } else if (packet->getType() == NACK_TYP && packet->getReceiverId() == this->getId()) {
+                    processNack(packet);
+                }
+            } else {
+                Serial.println("Received erroneous packet");
             }
-            // } else {
-            //     Serial.println("Received erroneous packet");
-            // }
             // TODO: packet MUST be deleted to free memory resources!!
             delete packet;
         }
@@ -613,6 +614,7 @@ void LoRaSENSE::loop() {
             // ACK timeout
             if (!resent) {
                 // Resend data packet
+                resent = true;
                 Packet* packet = packetQueue.peekFront();
                 Serial.printf("No ACK received for %u. Resending...", packet->getPacketId());
                 sendPacketViaLora(packetQueue.peekFront(), true);
@@ -626,7 +628,7 @@ void LoRaSENSE::loop() {
         // TODO: Only RREQ packets can be sent even if the node is NOT connected
         Packet* packet = packetQueue.peekFront();
         if (millis() >= nextSendAttempt && 
-            (hopCount > 0 || (packet->getType() != DATA_TYP && packet->getType() != RSTA_TYP))
+            (hopCount > 0 && packet->getType() != DATA_TYP && packet->getType() != RSTA_TYP)
             ) {
             // Send packet via LoRa
             bool waitForAck = false;
@@ -666,7 +668,7 @@ void LoRaSENSE::connectToLora() {
 
 void LoRaSENSE::addPacketToQueue(Packet* packet) {
     Serial.printf("Adding %s packet %u to queue...", packet->getTypeInString(), packet->getPacketId());
-    this->packetQueue.push(packet);
+    this->packetQueue.pushFront(packet);
     Serial.printf("DONE. %u packet/s currently in queue\n", this->packetQueue.getSize());
 }
 

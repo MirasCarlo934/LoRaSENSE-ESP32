@@ -39,7 +39,7 @@
 #define SERVER_CA ""
 
 //Debugging (can be overridden)
-#define MIN_HOP 0
+#define MIN_HOP 1
 
 class Packet {
 
@@ -95,6 +95,7 @@ class PacketQueue {
         int getSize();
         bool isEmpty();
         void push(Packet* packet);
+        void pushFront(Packet* packet);
         Packet* peekFront();
         Packet* popFront();
 
