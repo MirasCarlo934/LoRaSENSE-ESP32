@@ -152,7 +152,8 @@ class LoRaSENSE {
         void loop();
         void connectToWifi(char* ssid, char* pwd);
         void connectToLora();
-        void reconnect();
+        void reconnect();        
+        bool sendPacketInQueue();   // true if packet was sent, false if not
         void pushPacketToQueue(Packet* packet);
         void pushPacketToQueueFront(Packet* packet);
 

@@ -612,31 +612,8 @@ void LoRaSENSE::loop() {
                 reconnect();
             }
         }
-    } else if (!packetQueue.isEmpty()) {
-        // Send packets from packet queue
-        Packet* packet = packetQueue.peekFront();
-        if (millis() >= nextSendAttempt && 
-                (
-                    connectingToLora && packet->getType() == RREQ_TYP || 
-                    (connected && (hopCount > 0 || (packet->getType() != DATA_TYP && packet->getType() != RSTA_TYP)))
-                )
-            ) {
-            // Send packet via LoRa
-            bool waitForAck = false;
-            if (packet->getType() != RREQ_TYP && packet->getType() != RERR_TYP) {
-                Serial.printf("Sending %s packet %i to node %s...", packet->getTypeInString(), packet->getPacketId(), String(packet->getReceiverId(), HEX).c_str());
-            } else {
-                Serial.printf("Broadcasting %s packet %i...", packet->getTypeInString(), packet->getPacketId());
-            }
-            if (packet->getType() == DATA_TYP) {
-                waitForAck = true;
-            }
-            sendPacketViaLora(packet, waitForAck);
-        } else if (hopCount == 0 && (packet->getType() == DATA_TYP || packet->getType() == RSTA_TYP)) {
-            // Send packet via Wi-Fi/HTTP
-            Serial.printf("Sending %s packet %i to server...", packet->getTypeInString(), packet->getPacketId());
-            sendPacketToServer(packet);
-        }
+    } else {
+        sendPacketInQueue();
     }
 }
 
@@ -663,6 +640,7 @@ void LoRaSENSE::reconnect() {
     // Broadcast RERR packet
     Packet* rerr = new Packet(RERR_TYP, this->id, 0, 0, nullptr, 0);
     this->pushPacketToQueueFront(rerr);
+    while(!sendPacketInQueue());    // force send RERR packet
 
     // Reconnection process
     
@@ -695,6 +673,38 @@ void LoRaSENSE::reconnect() {
         startConnectTime = millis();
     }
     #endif
+}
+
+bool LoRaSENSE::sendPacketInQueue() {
+    if (!packetQueue.isEmpty()) {
+        Packet* packet = packetQueue.peekFront();
+        if (millis() >= nextSendAttempt && 
+                (
+                    connectingToLora && packet->getType() == RREQ_TYP || 
+                    (connected && (hopCount > 0 || (packet->getType() != DATA_TYP && packet->getType() != RSTA_TYP)))
+                )
+            ) {
+            // Send packet via LoRa
+            bool waitForAck = false;
+            if (packet->getType() != RREQ_TYP && packet->getType() != RERR_TYP) {
+                Serial.printf("Sending %s packet %i to node %s...", packet->getTypeInString(), packet->getPacketId(), String(packet->getReceiverId(), HEX).c_str());
+            } else {
+                Serial.printf("Broadcasting %s packet %i...", packet->getTypeInString(), packet->getPacketId());
+            }
+            if (packet->getType() == DATA_TYP) {
+                waitForAck = true;
+            }
+            sendPacketViaLora(packet, waitForAck);
+        } else if (hopCount == 0 && (packet->getType() == DATA_TYP || packet->getType() == RSTA_TYP)) {
+            // Send packet via Wi-Fi/HTTP
+            Serial.printf("Sending %s packet %i to server...", packet->getTypeInString(), packet->getPacketId());
+            sendPacketToServer(packet);
+        } else {
+            return false;
+        }
+        return true;
+    }
+    return false;
 }
 
 void LoRaSENSE::pushPacketToQueue(Packet* packet) {
