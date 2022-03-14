@@ -8,11 +8,21 @@
 #include <Arduino.h>
 #include "LoRaSENSE.h"
 
+//Sensor libraries
+#include "DHT.h"
+#include "MQ7.h"
+
 //Libraries for OLED Display
 #include <Wire.h>
 #include <Adafruit_BusIO_Register.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+
+//Sensor constants
+#define DHT_PIN 23
+#define DHT_TYPE 22
+#define MQ7_PIN 34
+#define MQ7_VCC 5.0
 
 //OLED pins
 #define OLED_SDA 21
@@ -22,20 +32,17 @@
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 
 //Constants
-// #define NODE_ID 0xAAAAAAAA
+#define NODE_ID 0xAAAAAAAA
 // #define NODE_ACCESS_TOKEN "wGkmunxRiUWWfaLkLu8q"  // Thingsboard access token for node A
 // #define NODE_ID 0xBBBBBBBB
 // #define NODE_ACCESS_TOKEN "u24bOqqfCGKZ4IMc0M6j"  // Thingsboard access token for node B
-#define NODE_ID 0xCCCCCCCC
+// #define NODE_ID 0xCCCCCCCC
 // #define NODE_ACCESS_TOKEN "XWJo5u7tAyvPGnduuqOa"  // Thingsboard access token for node C
 #define CYCLE_TIME 10000     // 10s, for testing only!!
 
 //Debugging
-#define DATA_TESTING true
+// #define DATA_TESTING true
 // #define DATA_TESTING false
-
-//Screen
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
 
 //Wi-Fi credentials
 const int wifi_arr_len = 1;
@@ -50,6 +57,14 @@ char* node_tokens[nodes] = {"wGkmunxRiUWWfaLkLu8q", "u24bOqqfCGKZ4IMc0M6j", "XWJ
 //Timekeeping
 unsigned long lastCycle = 0; // describes the time from which the LAST DATA CYCLE started, not the actual last data packet sent
 
+//Screen
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
+
+//Sensors
+DHT dht(DHT_PIN, DHT_TYPE);
+MQ7 mq7(MQ7_PIN, MQ7_VCC);
+
+//LoRaSENSE
 class LoRaSENSE LoRaSENSE(node_ids, node_tokens, nodes, NODE_ID, ssid_arr, pwd_arr, wifi_arr_len, WIFI_TIMEOUT);
 
 void afterInit() {
@@ -121,6 +136,9 @@ void setup() {
     for(;;); // Don't proceed, loop forever
   }
 
+  //initialize sensors
+  dht.begin();
+
   LoRaSENSE.setAfterInit(&afterInit);
   LoRaSENSE.setOnConnecting(&onConnecting);
   LoRaSENSE.setOnConnect(&onConnect);
@@ -128,8 +146,11 @@ void setup() {
 }
 
 void loop() {
+
   if (millis() - lastCycle >= CYCLE_TIME) {
+
     lastCycle = millis(); // lastCycle must ALWAYS be reset every START of the cycle
+
     #ifdef DATA_TESTING
       if (DATA_TESTING && LoRaSENSE.isConnected()) {
         long long* data = new long long[5];
@@ -143,6 +164,29 @@ void loop() {
         LoRaSENSE.pushPacketToQueue(dataPkt);
       }
     #endif
+
+    Serial.println("");
+
+    float co = mq7.getPPM();
+    float h = dht.readHumidity();       
+    float t = dht.readTemperature();    // celsius
+
+    if (isnan(h) || isnan(t)) {
+        Serial.println("Failed to read from DHT sensor!");
+        // return;
+    }
+
+    // Compute heat index in Celsius (isFahreheit = false)
+    float hic = dht.computeHeatIndex(t, h, false);
+
+    Serial.printf("CO: %f\n", co);
+    Serial.printf("Humidity: %f\n", h);
+    Serial.printf("Temp: %f\n", t);
+    Serial.printf("Heat Index: %f\n", hic);
+    Serial.printf("Next reading in %u\n", CYCLE_TIME);
+
   }
+
   LoRaSENSE.loop();
+
 }
