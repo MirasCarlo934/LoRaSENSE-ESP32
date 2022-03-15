@@ -19,7 +19,7 @@
 #include <Adafruit_SSD1306.h>
 
 //Sensor constants
-#define DHT_PIN 23
+#define DHT_PIN 19  //TODO: THIS IS AN INVALID PIN!!!
 #define DHT_TYPE 22
 #define MQ7_PIN 34
 #define MQ7_VCC 5.0
@@ -34,16 +34,16 @@
 //Constants
 // #define NODE_ID 0xAAAAAAAA
 // #define NODE_ACCESS_TOKEN "wGkmunxRiUWWfaLkLu8q"  // Thingsboard access token for node A
-#define NODE_ID 0xBBBBBBBB
+// #define NODE_ID 0xBBBBBBBB
 // #define NODE_ACCESS_TOKEN "u24bOqqfCGKZ4IMc0M6j"  // Thingsboard access token for node B
-// #define NODE_ID 0xCCCCCCCC
+#define NODE_ID 0xCCCCCCCC
 // #define NODE_ACCESS_TOKEN "XWJo5u7tAyvPGnduuqOa"  // Thingsboard access token for node C
 #define CYCLE_TIME 10000     // 10s, for testing only!!
 
 //Debugging
-// #define DATA_TESTING true
-// #define DATA_TESTING false
-#define DATA_SEND true      // true if sending data to the network
+#define DATA_TESTING true   // set true to send randomized data to the network
+#define DATA_SEND false      // set true to send sensor data to the network
+#define SENSORS_ON false     // set true to read data from sensors
 
 //Wi-Fi credentials
 const int wifi_arr_len = 1;
@@ -179,40 +179,45 @@ void loop() {
       }
     #endif
 
-    Serial.println("");
+    #ifdef SENSORS_ON
+      // Collect data from sensors
+      if (SENSORS_ON) {
+        Serial.println("");
 
-    float c = mq7.getPPM();
-    float h = dht.readHumidity();       
-    float t = dht.readTemperature();    // celsius
+        float c = mq7.getPPM();
+        float h = dht.readHumidity();       
+        float t = dht.readTemperature();    // celsius
 
-    if (isnan(h) || isnan(t)) {
-        Serial.println("Failed to read from DHT sensor!");
-        // return;
-    }
+        if (isnan(h) || isnan(t)) {
+            Serial.println("Failed to read from DHT sensor!");
+            // return;
+        }
 
-    // Compute heat index in Celsius (isFahreheit = false)
-    float hic = dht.computeHeatIndex(t, h, false);
+        // Compute heat index in Celsius (isFahreheit = false)
+        float hic = dht.computeHeatIndex(t, h, false);
 
-    Serial.printf("CO: %f\n", c);
-    Serial.printf("Humidity: %f\n", h);
-    Serial.printf("Temp: %f\n", t);
-    Serial.printf("Heat Index: %f\n", hic);
-    Serial.printf("Next reading in %u ms\n", CYCLE_TIME);
+        Serial.printf("CO: %f\n", c);
+        Serial.printf("Humidity: %f\n", h);
+        Serial.printf("Temp: %f\n", t);
+        Serial.printf("Heat Index: %f\n", hic);
+        Serial.printf("Next reading in %u ms\n\n", CYCLE_TIME);
 
-    // Send data
-    #ifdef DATA_SEND
-      if (DATA_SEND && LoRaSENSE.isConnected()) {
-        Data pm2_5 = {0.0};
-        Data pm10 = {0.0};
-        Data co = {c};
-        Data temp = {t};
-        Data humid = {h};
-        Data data_arr[] = {pm2_5, pm10, co, temp, humid};
-        byte* data;
-        int data_len = convertDataToByteArray(data, data_arr, 5, sizeof(float));
-        Packet* dataPkt = new Packet(DATA_TYP, LoRaSENSE.getId(), LoRaSENSE.getParentId(), LoRaSENSE.getId(), data, data_len);
-        Serial.printf("Adding data packet %i to queue...\n", dataPkt->getPacketId());
-        LoRaSENSE.pushPacketToQueue(dataPkt);
+        #ifdef DATA_SEND
+          // Send data
+          if (DATA_SEND && LoRaSENSE.isConnected()) {
+            Data pm2_5 = {0.0};
+            Data pm10 = {0.0};
+            Data co = {c};
+            Data temp = {t};
+            Data humid = {h};
+            Data data_arr[] = {pm2_5, pm10, co, temp, humid};
+            byte* data;
+            int data_len = convertDataToByteArray(data, data_arr, 5, sizeof(float));
+            Packet* dataPkt = new Packet(DATA_TYP, LoRaSENSE.getId(), LoRaSENSE.getParentId(), LoRaSENSE.getId(), data, data_len);
+            Serial.printf("Adding data packet %i to queue...\n", dataPkt->getPacketId());
+            LoRaSENSE.pushPacketToQueue(dataPkt);
+          }
+        #endif
       }
     #endif
 

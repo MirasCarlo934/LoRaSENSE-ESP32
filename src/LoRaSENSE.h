@@ -40,7 +40,7 @@
 #define SERVER_CA ""
 
 //Debugging (can be overridden)
-#define MIN_HOP 1
+#define MIN_HOP 2
 
 union Data {
     float data_f;

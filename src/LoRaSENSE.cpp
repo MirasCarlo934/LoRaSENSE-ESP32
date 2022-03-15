@@ -578,7 +578,7 @@ void LoRaSENSE::loop() {
                 }
                 if (packet->getType() == RREQ_TYP && connected) {
                     processRreq(packet);
-                } else if (packet->getType() == RERR_TYP && connected) {
+                } else if (packet->getType() == RERR_TYP && packet->getSenderId() == this->getParentId() && connected) {
                     processRerr(packet);
                 } else if (packet->getType() == RREP_TYP && packet->getReceiverId() == this->getId()) {
                     processRrep(packet, rssi);
