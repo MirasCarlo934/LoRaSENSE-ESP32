@@ -32,9 +32,9 @@
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 
 //Constants
-#define NODE_ID 0xAAAAAAAA
+// #define NODE_ID 0xAAAAAAAA
 // #define NODE_ACCESS_TOKEN "wGkmunxRiUWWfaLkLu8q"  // Thingsboard access token for node A
-// #define NODE_ID 0xBBBBBBBB
+#define NODE_ID 0xBBBBBBBB
 // #define NODE_ACCESS_TOKEN "u24bOqqfCGKZ4IMc0M6j"  // Thingsboard access token for node B
 // #define NODE_ID 0xCCCCCCCC
 // #define NODE_ACCESS_TOKEN "XWJo5u7tAyvPGnduuqOa"  // Thingsboard access token for node C
@@ -43,6 +43,7 @@
 //Debugging
 // #define DATA_TESTING true
 // #define DATA_TESTING false
+#define DATA_SEND true      // true if sending data to the network
 
 //Wi-Fi credentials
 const int wifi_arr_len = 1;
@@ -119,6 +120,18 @@ void onConnect() {
   display.display();
 }
 
+int convertDataToByteArray(byte* &byte_arr, Data* data_arr, int data_len, int data_size) {
+  byte_arr = new byte[data_size * data_len];
+  int j = 0;
+  for (int i = 0; i < data_len; ++i) {
+    Data data = data_arr[i];
+    for (; j < (data_size * (i+1)); ++j) {
+      byte_arr[j] = data.data_b[j % data_size];
+    }
+  }
+  return j;
+}
+
 void setup() {
   //initialize Serial Monitor
   Serial.begin(115200);
@@ -138,6 +151,7 @@ void setup() {
 
   //initialize sensors
   dht.begin();
+  Serial.println("Sensors initialized");
 
   LoRaSENSE.setAfterInit(&afterInit);
   LoRaSENSE.setOnConnecting(&onConnecting);
@@ -153,7 +167,7 @@ void loop() {
 
     #ifdef DATA_TESTING
       if (DATA_TESTING && LoRaSENSE.isConnected()) {
-        long long* data = new long long[5];
+        long* data = new long[5];
         data[0] = rand();   // pm2.5
         data[1] = rand();   // pm10
         data[2] = rand();   // co
@@ -167,7 +181,7 @@ void loop() {
 
     Serial.println("");
 
-    float co = mq7.getPPM();
+    float c = mq7.getPPM();
     float h = dht.readHumidity();       
     float t = dht.readTemperature();    // celsius
 
@@ -179,11 +193,28 @@ void loop() {
     // Compute heat index in Celsius (isFahreheit = false)
     float hic = dht.computeHeatIndex(t, h, false);
 
-    Serial.printf("CO: %f\n", co);
+    Serial.printf("CO: %f\n", c);
     Serial.printf("Humidity: %f\n", h);
     Serial.printf("Temp: %f\n", t);
     Serial.printf("Heat Index: %f\n", hic);
-    Serial.printf("Next reading in %u\n", CYCLE_TIME);
+    Serial.printf("Next reading in %u ms\n", CYCLE_TIME);
+
+    // Send data
+    #ifdef DATA_SEND
+      if (DATA_SEND && LoRaSENSE.isConnected()) {
+        Data pm2_5 = {0.0};
+        Data pm10 = {0.0};
+        Data co = {c};
+        Data temp = {t};
+        Data humid = {h};
+        Data data_arr[] = {pm2_5, pm10, co, temp, humid};
+        byte* data;
+        int data_len = convertDataToByteArray(data, data_arr, 5, sizeof(float));
+        Packet* dataPkt = new Packet(DATA_TYP, LoRaSENSE.getId(), LoRaSENSE.getParentId(), LoRaSENSE.getId(), data, data_len);
+        Serial.printf("Adding data packet %i to queue...\n", dataPkt->getPacketId());
+        LoRaSENSE.pushPacketToQueue(dataPkt);
+      }
+    #endif
 
   }
 

@@ -40,7 +40,13 @@
 #define SERVER_CA ""
 
 //Debugging (can be overridden)
-#define MIN_HOP 0
+#define MIN_HOP 1
+
+union Data {
+    float data_f;
+    long data_l;
+    byte data_b[4];
+};
 
 class Packet {
 
