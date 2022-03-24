@@ -16,7 +16,8 @@
 #define MISO 19
 #define MOSI 27
 #define SS 18
-#define RST 14
+// #define RST 14
+#define RST 23
 #define DIO0 26
 
 //433E6 for Asia
@@ -400,7 +401,6 @@ void LoRaSENSE::sendPacketViaLora(Packet* packet, bool waitForAck) {
         waitingForAck = waitForAck;
         lastSendAttempt = millis();
     } else {
-        // TODO: extract the 369 value into a preprocessor macro
         long rand_t = (rand() % RESEND_MAX_TIME);
         nextSendAttempt = millis() + rand_t;
         Serial.printf("Possible collision detected, rescheduling after %ums...\n", rand_t);
