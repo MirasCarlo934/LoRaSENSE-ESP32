@@ -418,7 +418,7 @@ void LoRaSENSE::sendPacketToServer(Packet* packet) {
     StaticJsonDocument<256> jsonDoc;
     byte* data;
     int data_len = packet->getData(data);
-    // TODO: fix this, perhaps with type punning?
+    //TODO: convert to Data union(?)
     float pm2_5_f = 0, pm10_f = 0, co_f = 0, temp_f = 0, humid_f = 0;
     byte pm2_5_b[4], pm10_b[4], co_b[4], temp_b[4], humid_b[4];
     pm2_5_b[0] = data[0];
@@ -455,7 +455,6 @@ void LoRaSENSE::sendPacketToServer(Packet* packet) {
     String jsonStr = "";
     serializeJson(jsonDoc, jsonStr);
     // TODO: maybe this can be optimized further? (ie. initialization of HTTPClient)
-    HTTPClient httpClient;
     String endpoint = SERVER_ENDPOINT;
     char* accessToken;
     for (int i = 0; i < this->nodes; ++i) {
@@ -464,19 +463,20 @@ void LoRaSENSE::sendPacketToServer(Packet* packet) {
         }
     }
     endpoint.replace("$ACCESS_TOKEN", accessToken);
-    httpClient.begin(endpoint);
-    int httpResponseCode = httpClient.POST(jsonStr);
+    httpClient->begin(endpoint);
+    beginSendToServer = millis();
+    int httpResponseCode = httpClient->POST(jsonStr);
     if (httpResponseCode == 200) {
-        Serial.println("sent");
+        Serial.printf("sent");
         packetQueue.popFront();
         delete packet;
     } else if (httpResponseCode >= 400) {
-        Serial.printf("error(%i)\n", httpResponseCode);
-        Serial.println(httpClient.getString());
+        Serial.printf("error(%i)", httpResponseCode);
+        Serial.println(httpClient->getString());
     } else {
-        Serial.printf("fatal error(%i)\n", httpResponseCode);
+        Serial.printf("fatal error(%i)", httpResponseCode);
     }
-    httpClient.end();
+    Serial.printf(" [time: %lu]\n", millis() - beginSendToServer);
 }
 
 void LoRaSENSE::setup() {
@@ -528,6 +528,7 @@ void LoRaSENSE::loop() {
             hopCount = 0;
             connected = true;
             connectingToWifi = false;
+            httpClient = new HTTPClient();
             funcOnConnect();
         } else if ((millis() - lastWifiAttempt) >= wifiTimeout && wifi_i < wifi_arr_len) {
             connectToWifi(ssid_arr[wifi_i], pwd_arr[wifi_i]);

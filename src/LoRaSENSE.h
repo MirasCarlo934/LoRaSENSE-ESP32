@@ -39,8 +39,8 @@
 #define SERVER_ENDPOINT "https://thingsboard.cloud/api/v1/$ACCESS_TOKEN/telemetry"
 #define SERVER_CA ""
 
-//Debugging (can be overridden)
-#define MIN_HOP 1
+//Debugging
+#define MIN_HOP 0
 
 union Data {
     float data_f;
@@ -128,13 +128,15 @@ class LoRaSENSE {
         bool connected = false;
         bool waitingForAck = false;
         bool resent = false;
+        HTTPClient* httpClient;              // http client for root nodes
         unsigned long startConnectTime = 0;
         unsigned long connectTime = 0;
         unsigned long wifiTimeout = 0;
         unsigned long lastRreqSent = 0;
         unsigned long lastWifiAttempt = 0;
-        unsigned long nextSendAttempt = 0; // time in millis where next send attempt can be made
+        unsigned long nextSendAttempt = 0;      // time in millis where next send attempt can be made
         unsigned long lastSendAttempt = 0;      // time to wait for a DACK/NACK
+        unsigned long beginSendToServer = 0;    // time when device began sending to server (for logging purposes)
         PacketQueue packetQueue;
 
         // Callback variables

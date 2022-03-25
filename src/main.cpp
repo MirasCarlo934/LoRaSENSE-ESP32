@@ -32,18 +32,18 @@
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 
 //Constants
-// #define NODE_ID 0xAAAAAAAA
+#define NODE_ID 0xAAAAAAAA
 // #define NODE_ACCESS_TOKEN "wGkmunxRiUWWfaLkLu8q"  // Thingsboard access token for node A
-#define NODE_ID 0xBBBBBBBB
+// #define NODE_ID 0xBBBBBBBB
 // #define NODE_ACCESS_TOKEN "u24bOqqfCGKZ4IMc0M6j"  // Thingsboard access token for node B
 // #define NODE_ID 0xCCCCCCCC
 // #define NODE_ACCESS_TOKEN "XWJo5u7tAyvPGnduuqOa"  // Thingsboard access token for node C
 #define CYCLE_TIME 10000     // 10s, for testing only!!
 
 //Debugging
-// #define DATA_TESTING true   // set true to send randomized data to the network
+#define DATA_TESTING true   // set true to send randomized data to the network
 #define DATA_SEND true      // set true to send sensor data to the network
-#define SENSORS_ON true     // set true to read data from sensors
+// #define SENSORS_ON true     // set true to read data from sensors
 
 //Wi-Fi credentials
 const int wifi_arr_len = 1;
@@ -167,21 +167,14 @@ void loop() {
 
     #ifdef DATA_TESTING
       if (DATA_TESTING && LoRaSENSE.isConnected()) {
-        // long* data = new long[5];
         Data pm2_5 = {4.5};
         Data pm10 = {10.0};
         Data co = {13.22};
         Data temp = {36.2};
         Data humid = {100.1};
-        // data[0] = rand();   // pm2.5
-        // data[1] = rand();   // pm10
-        // data[2] = rand();   // co
-        // data[3] = rand();   // temp
-        // data[4] = rand();   // humid
         Data data_arr[] = {pm2_5, pm10, co, temp, humid};
         byte* data;
         int data_len = convertDataToByteArray(data, data_arr, 5, sizeof(float));
-        // Packet* dataPkt = new Packet(DATA_TYP, LoRaSENSE.getId(), LoRaSENSE.getParentId(), LoRaSENSE.getId(), reinterpret_cast<byte*>(data), sizeof(long long)*5);
         Packet* dataPkt = new Packet(DATA_TYP, LoRaSENSE.getId(), LoRaSENSE.getParentId(), LoRaSENSE.getId(), data, data_len);
         Serial.printf("Adding test data packet %i to queue...\n", dataPkt->getPacketId());
         LoRaSENSE.pushPacketToQueue(dataPkt);
