@@ -418,43 +418,60 @@ void LoRaSENSE::sendPacketToServer(Packet* packet) {
     StaticJsonDocument<256> jsonDoc;
     byte* data;
     int data_len = packet->getData(data);
-    //TODO: convert to Data union(?)
-    float pm2_5_f = 0, pm10_f = 0, co_f = 0, temp_f = 0, humid_f = 0;
-    byte pm2_5_b[4], pm10_b[4], co_b[4], temp_b[4], humid_b[4];
-    pm2_5_b[0] = data[0];
-    pm2_5_b[1] = data[1];
-    pm2_5_b[2] = data[2];
-    pm2_5_b[3] = data[3];
-    pm10_b[0] = data[4];
-    pm10_b[1] = data[5];
-    pm10_b[2] = data[6];
-    pm10_b[3] = data[7];
-    co_b[0] = data[8];
-    co_b[1] = data[9];
-    co_b[2] = data[10];
-    co_b[3] = data[11];
-    temp_b[0] = data[12];
-    temp_b[1] = data[13];
-    temp_b[2] = data[14];
-    temp_b[3] = data[15];
-    humid_b[0] = data[16];
-    humid_b[1] = data[17];
-    humid_b[2] = data[18];
-    humid_b[3] = data[19];
-    memcpy(&pm2_5_f, &pm2_5_b, sizeof(float));
-    memcpy(&pm10_f, &pm10_b, sizeof(float));
-    memcpy(&co_f, &co_b, sizeof(float));
-    memcpy(&temp_f, &temp_b, sizeof(float));
-    memcpy(&humid_f, &humid_b, sizeof(float));
-    jsonDoc["packetId"] = packet->getPacketId();
-    jsonDoc["pm2_5"] = pm2_5_f;
-    jsonDoc["pm10"] = pm10_f;
-    jsonDoc["co"] = co_f;
-    jsonDoc["temp"] = temp_f;
-    jsonDoc["humid"] = humid_f;
+
+    if (packet->getType() == DATA_TYP) {
+        Data pm2_5, pm10, co, temp, humid;
+        Data_d lat, lng;
+        pm2_5.data_b[0] = data[0];
+        pm2_5.data_b[1] = data[1];
+        pm2_5.data_b[2] = data[2];
+        pm2_5.data_b[3] = data[3];
+        pm10.data_b[0] = data[4];
+        pm10.data_b[1] = data[5];
+        pm10.data_b[2] = data[6];
+        pm10.data_b[3] = data[7];
+        co.data_b[0] = data[8];
+        co.data_b[1] = data[9];
+        co.data_b[2] = data[10];
+        co.data_b[3] = data[11];
+        temp.data_b[0] = data[12];
+        temp.data_b[1] = data[13];
+        temp.data_b[2] = data[14];
+        temp.data_b[3] = data[15];
+        humid.data_b[0] = data[16];
+        humid.data_b[1] = data[17];
+        humid.data_b[2] = data[18];
+        humid.data_b[3] = data[19];
+        lat.data_b[0] = data[20];
+        lat.data_b[1] = data[21];
+        lat.data_b[2] = data[22];
+        lat.data_b[3] = data[23];
+        lat.data_b[4] = data[24];
+        lat.data_b[5] = data[25];
+        lat.data_b[6] = data[26];
+        lat.data_b[7] = data[27];
+        lng.data_b[0] = data[28];
+        lng.data_b[1] = data[29];
+        lng.data_b[2] = data[30];
+        lng.data_b[3] = data[31];
+        lng.data_b[4] = data[32];
+        lng.data_b[5] = data[33];
+        lng.data_b[6] = data[34];
+        lng.data_b[7] = data[35];
+        jsonDoc["packetId"] = packet->getPacketId();
+        jsonDoc["pm2_5"] = pm2_5.data_f;
+        jsonDoc["pm10"] = pm10.data_f;
+        jsonDoc["co"] = co.data_f;
+        jsonDoc["temp"] = temp.data_f;
+        jsonDoc["humid"] = humid.data_f;
+        jsonDoc["lat"] = lat.data_d;
+        jsonDoc["lng"] = lng.data_d;
+    }
     String jsonStr = "";
     serializeJson(jsonDoc, jsonStr);
-    // TODO: maybe this can be optimized further? (ie. initialization of HTTPClient)
+    // DEBUG
+        Serial.printf("%s...", jsonStr);
+    //
     String endpoint = SERVER_ENDPOINT;
     char* accessToken;
     for (int i = 0; i < this->nodes; ++i) {

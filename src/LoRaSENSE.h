@@ -1,6 +1,9 @@
 #ifndef LORASENSE_H
 #define LORASENSE_H
 
+//Debugging
+#define MIN_HOP 0
+
 #include <Arduino.h>
 #include <ArduinoJson.h>
 
@@ -39,13 +42,15 @@
 #define SERVER_ENDPOINT "https://thingsboard.cloud/api/v1/$ACCESS_TOKEN/telemetry"
 #define SERVER_CA ""
 
-//Debugging
-#define MIN_HOP 0
-
 union Data {
     float data_f;
     long data_l;
-    byte data_b[4];
+    byte data_b[sizeof(float)];
+};
+
+union Data_d {
+    double data_d;
+    byte data_b[sizeof(double)];
 };
 
 class Packet {
