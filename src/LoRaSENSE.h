@@ -2,7 +2,7 @@
 #define LORASENSE_H
 
 //Debugging
-#define MIN_HOP 1
+#define MIN_HOP 0
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -44,8 +44,12 @@
 
 union Data {
     float data_f;
-    long data_l;
     byte data_b[sizeof(float)];
+};
+
+union Data_l {
+    long data_l;
+    byte data_b[sizeof(long)];
 };
 
 union Data_d {
@@ -118,6 +122,7 @@ class LoRaSENSE {
     private:
         unsigned int* node_ids;
         char** node_tokens;
+        char** node_rsta_tokens;
         int nodes;
 
         // Network connection variables
@@ -159,7 +164,7 @@ class LoRaSENSE {
         void sendPacketToServer(Packet* packet);
 
     public:
-        LoRaSENSE(unsigned int* node_ids, char** node_tokens, int nodes, unsigned int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, long timeout);
+        LoRaSENSE(unsigned int* node_ids, char** node_tokens, char** node_rsta_tokens, int nodes, unsigned int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, long timeout);
         ~LoRaSENSE();
 
         void setup();

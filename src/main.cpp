@@ -6,16 +6,16 @@
 */
 
 //Constants
-// #define NODE_ID 0xAAAAAAAA
+#define NODE_ID 0xAAAAAAAA
 // #define NODE_ACCESS_TOKEN "wGkmunxRiUWWfaLkLu8q"  // Thingsboard access token for node A
-#define NODE_ID 0xBBBBBBBB
+// #define NODE_ID 0xBBBBBBBB
 // #define NODE_ACCESS_TOKEN "u24bOqqfCGKZ4IMc0M6j"  // Thingsboard access token for node B
 // #define NODE_ID 0xCCCCCCCC
 // #define NODE_ACCESS_TOKEN "XWJo5u7tAyvPGnduuqOa"  // Thingsboard access token for node C
 // #define NODE_ID 0xDDDDDDDD
 // #define NODE_ID 0xEEEEEEEE
 #define CYCLE_TIME 10000     // 10s, for testing only!!
-#define MOBILE_NODE false
+#define MOBILE_NODE true
 
 //Debugging
 // #define DATA_TESTING true   // set true to send randomized data to the network
@@ -68,6 +68,7 @@ char *pwd_arr[wifi_arr_len] = {"carlopiadredcels"};
 const int nodes = 5;
 unsigned int node_ids[nodes] = {0xAAAAAAAA, 0xBBBBBBBB, 0xCCCCCCCC, 0xDDDDDDDD, 0xEEEEEEEE};
 char* node_tokens[nodes] = {"wGkmunxRiUWWfaLkLu8q", "u24bOqqfCGKZ4IMc0M6j", "XWJo5u7tAyvPGnduuqOa", "KESffXVZoedYJPEdQvTa", "yt5a5JwN9YT5XDblw7Fj"};
+char* node_rsta_tokens[nodes] = {"egG6V9ycretmen06GVLZ", "e8hFBf7Oo0BcpznuTeRR", "dJxapl6dSAgBLEsoT5qh", "Jg5L5EYkDvsKzGu7oblO", "fqws1MXC314MeU6wzxdI"};
 double node_coords[][2] = {
   {14.209234046941177, 121.06352544064003},
   {14.207157320684628, 121.06521845071254},
@@ -99,7 +100,7 @@ DHT dht(DHT_PIN, DHT_TYPE);
 MQ7 mq7(MQ7_PIN, MQ7_VCC);
 
 //LoRaSENSE
-class LoRaSENSE LoRaSENSE(node_ids, node_tokens, nodes, NODE_ID, ssid_arr, pwd_arr, wifi_arr_len, WIFI_TIMEOUT);
+class LoRaSENSE LoRaSENSE(node_ids, node_tokens, node_rsta_tokens, nodes, NODE_ID, ssid_arr, pwd_arr, wifi_arr_len, WIFI_TIMEOUT);
 
 void afterInit() {
   display.clearDisplay();

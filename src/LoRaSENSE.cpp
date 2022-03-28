@@ -309,9 +309,10 @@ int Packet::getLength() {
 
 
 
-LoRaSENSE::LoRaSENSE(unsigned int* node_ids, char** node_tokens, int nodes, unsigned int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, long timeout) {
+LoRaSENSE::LoRaSENSE(unsigned int* node_ids, char** node_tokens, char** node_rsta_tokens, int nodes, unsigned int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, long timeout) {
     this->node_ids = node_ids;
     this->node_tokens = node_tokens;
+    this->node_rsta_tokens = node_rsta_tokens;
     this->nodes = nodes;
     this->id = id;
     this->ssid_arr = ssid_arr;
@@ -418,6 +419,7 @@ void LoRaSENSE::sendPacketToServer(Packet* packet) {
     StaticJsonDocument<256> jsonDoc;
     byte* data;
     int data_len = packet->getData(data);
+    char* accessToken;
 
     if (packet->getType() == DATA_TYP) {
         Data pm2_5, pm10, co, temp, humid;
@@ -459,6 +461,7 @@ void LoRaSENSE::sendPacketToServer(Packet* packet) {
         lng.data_b[6] = data[34];
         lng.data_b[7] = data[35];
         jsonDoc["packetId"] = packet->getPacketId();
+        jsonDoc["sourceId"] = packet->getSourceId();
         jsonDoc["pm2_5"] = pm2_5.data_f;
         jsonDoc["pm10"] = pm10.data_f;
         jsonDoc["co"] = co.data_f;
@@ -466,6 +469,28 @@ void LoRaSENSE::sendPacketToServer(Packet* packet) {
         jsonDoc["humid"] = humid.data_f;
         jsonDoc["lat"] = lat.data_d;
         jsonDoc["lng"] = lng.data_d;
+        for (int i = 0; i < this->nodes; ++i) {
+            if (packet->getSourceId() == node_ids[i]) {
+                accessToken = node_tokens[i];
+            }
+        }
+    } else if (packet->getType() == RSTA_TYP) {
+        int ledger_len = data_len / sizeof(Data_l);
+        Data_l routeLedger[ledger_len];
+        for (int i = 0; i < ledger_len; ++i) {
+            Data_l routeNode = routeLedger[i];
+            for (int j = 0; j < sizeof(Data_l); ++j) {
+                routeNode.data_b[j] = data[i*sizeof(Data_l) + j];
+            }
+            jsonDoc["route"][i] = routeNode.data_l;
+        }
+        jsonDoc["packetId"] = packet->getPacketId();
+        jsonDoc["sourceId"] = packet->getSourceId();
+        for (int i = 0; i < this->nodes; ++i) {
+            if (packet->getSourceId() == node_ids[i]) {
+                accessToken = node_rsta_tokens[i];
+            }
+        }
     }
     String jsonStr = "";
     serializeJson(jsonDoc, jsonStr);
@@ -474,12 +499,6 @@ void LoRaSENSE::sendPacketToServer(Packet* packet) {
         Serial.print("...");
     //
     String endpoint = SERVER_ENDPOINT;
-    char* accessToken;
-    for (int i = 0; i < this->nodes; ++i) {
-        if (packet->getSourceId() == node_ids[i]) {
-            accessToken = node_tokens[i];
-        }
-    }
     endpoint.replace("$ACCESS_TOKEN", accessToken);
     httpClient->begin(endpoint);
     beginSendToServer = millis();
@@ -540,13 +559,16 @@ void LoRaSENSE::loop() {
 
     if (connectingToWifi) {
         if ((millis() - lastWifiAttempt) < wifiTimeout && WiFi.status() == WL_CONNECTED) {
-            // Node is root
+            // Connected to Wi-Fi; Node is root
             connectTime = millis() - startConnectTime;
             Serial.println("Connected to Wi-Fi");
             hopCount = 0;
             connected = true;
             connectingToWifi = false;
             httpClient = new HTTPClient();
+            Data_l data = {this->id};
+            Packet* rsta = new Packet(RSTA_TYP, this->id, this->id, this->id, data.data_b, sizeof(data));
+            this->pushPacketToQueue(rsta);
             funcOnConnect();
         } else if ((millis() - lastWifiAttempt) >= wifiTimeout && wifi_i < wifi_arr_len) {
             connectToWifi(ssid_arr[wifi_i], pwd_arr[wifi_i]);
