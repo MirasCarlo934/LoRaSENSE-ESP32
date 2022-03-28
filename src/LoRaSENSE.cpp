@@ -470,7 +470,8 @@ void LoRaSENSE::sendPacketToServer(Packet* packet) {
     String jsonStr = "";
     serializeJson(jsonDoc, jsonStr);
     // DEBUG
-        Serial.printf("%s...", jsonStr);
+        Serial.print(jsonStr);
+        Serial.print("...");
     //
     String endpoint = SERVER_ENDPOINT;
     char* accessToken;

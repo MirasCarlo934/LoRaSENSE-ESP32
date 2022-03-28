@@ -6,19 +6,21 @@
 */
 
 //Constants
-#define NODE_ID 0xAAAAAAAA
+// #define NODE_ID 0xAAAAAAAA
 // #define NODE_ACCESS_TOKEN "wGkmunxRiUWWfaLkLu8q"  // Thingsboard access token for node A
-// #define NODE_ID 0xBBBBBBBB
+#define NODE_ID 0xBBBBBBBB
 // #define NODE_ACCESS_TOKEN "u24bOqqfCGKZ4IMc0M6j"  // Thingsboard access token for node B
 // #define NODE_ID 0xCCCCCCCC
 // #define NODE_ACCESS_TOKEN "XWJo5u7tAyvPGnduuqOa"  // Thingsboard access token for node C
+// #define NODE_ID 0xDDDDDDDD
+// #define NODE_ID 0xEEEEEEEE
 #define CYCLE_TIME 10000     // 10s, for testing only!!
-#define MOBILE_NODE true
+#define MOBILE_NODE false
 
 //Debugging
-#define DATA_TESTING true   // set true to send randomized data to the network
+// #define DATA_TESTING true   // set true to send randomized data to the network
 #define DATA_SEND true      // set true to send sensor data to the network
-// #define SENSORS_ON true     // set true to read data from sensors
+#define SENSORS_ON true     // set true to read data from sensors
 
 #include <Arduino.h>
 #include "LoRaSENSE.h"
@@ -45,7 +47,7 @@
 #include <Adafruit_SSD1306.h>
 
 //Sensor constants
-#define DHT_PIN 35
+#define DHT_PIN 14
 #define DHT_TYPE 22
 #define MQ7_PIN 34
 #define MQ7_VCC 5.0
@@ -63,21 +65,28 @@ char *ssid_arr[wifi_arr_len] = {"mirasbahay"};
 char *pwd_arr[wifi_arr_len] = {"carlopiadredcels"};
 
 //Node credentials
-const int nodes = 3;
-unsigned int node_ids[nodes] = {0xAAAAAAAA, 0xBBBBBBBB, 0xCCCCCCCC};
-char* node_tokens[nodes] = {"wGkmunxRiUWWfaLkLu8q", "u24bOqqfCGKZ4IMc0M6j", "XWJo5u7tAyvPGnduuqOa"};
+const int nodes = 5;
+unsigned int node_ids[nodes] = {0xAAAAAAAA, 0xBBBBBBBB, 0xCCCCCCCC, 0xDDDDDDDD, 0xEEEEEEEE};
+char* node_tokens[nodes] = {"wGkmunxRiUWWfaLkLu8q", "u24bOqqfCGKZ4IMc0M6j", "XWJo5u7tAyvPGnduuqOa", "KESffXVZoedYJPEdQvTa", "yt5a5JwN9YT5XDblw7Fj"};
+double node_coords[][2] = {
+  {14.209234046941177, 121.06352544064003},
+  {14.207157320684628, 121.06521845071254},
+  {14.206824309550607, 121.06818332502569},
+  {14.206911045569822, 121.06149026454726},
+  {14.205470505014995, 121.06228028118633}
+};
 
 //Mobile node
 #ifdef MOBILE_NODE
   #if MOBILE_NODE == true
     SoftwareSerial ss(GPS_TX, GPS_RX);
     TinyGPSPlus gps;
-    //DEBUG
-      double last_lat = 14.209234046941177; // should be 0
-      double last_lng = 121.06352544064003; // should be 0
-    //
   #endif
 #endif
+
+//Location
+double last_lat = 0; // last recorded latitude
+double last_lng = 0; // last recorded longitude
 
 //Timekeeping
 unsigned long lastCycle = 0; // describes the time from which the LAST DATA CYCLE started, not the actual last data packet sent
@@ -233,6 +242,14 @@ void loop() {
           // displayGpsData(gps.location.lat(), gps.location.lng());
         }
       }
+    #else
+      for (int i = 0; i < nodes; ++i) {
+        if (LoRaSENSE.getId() == node_ids[i]) {
+          last_lat = node_coords[i][0];
+          last_lng = node_coords[i][1];
+          break;
+        }
+      }
     #endif
   #endif
 
@@ -298,9 +315,13 @@ void loop() {
             Data co = {c};
             Data temp = {t};
             Data humid = {h};
+            Data_d lat = {last_lat};
+            Data_d lng = {last_lng};
             Data data_arr[] = {pm2_5, pm10, co, temp, humid};
-            byte* data;
-            int data_len = appendDataToByteArray(data, data_arr, 5, sizeof(float));
+            Data_d gps_data_arr[] = {lat, lng};
+            byte* data = new byte[5*sizeof(Data) + 2*sizeof(Data_d)];
+            int data_len = appendDataToByteArray(data, 0, data_arr, 5, sizeof(Data));
+            data_len = appendDataToByteArray(data, data_len, gps_data_arr, 2, sizeof(Data_d));
             Packet* dataPkt = new Packet(DATA_TYP, LoRaSENSE.getId(), LoRaSENSE.getParentId(), LoRaSENSE.getId(), data, data_len);
             Serial.printf("Adding data packet %i to queue...\n", dataPkt->getPacketId());
             LoRaSENSE.pushPacketToQueue(dataPkt);
