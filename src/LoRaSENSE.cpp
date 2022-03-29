@@ -30,6 +30,35 @@ void empty() {
 
 }
 
+/**
+ * @brief Appends an array of Data unions to a given byte array.
+ * 
+ * @param byte_arr the byte array, MUST be instantiated with a capacity that can hold the appended Data bytes
+ * @param last_byte_arr_i the byte_arr index of its last element
+ * @param data_arr the Data union array to be appended to byte_arr
+ * @param data_len the length of data_arr
+ * @param data_size the size of each element of new_bytes_arr, MUST be either the size of a float or a double
+ * @return int last array index added to byte_arr
+ */
+int appendDataToByteArray(byte* &byte_arr, int last_byte_arr_i, void* data_arr, int data_len, int data_size) {
+  // byte_arr = new byte[data_size * data_len];
+  int j = last_byte_arr_i;
+  for (int i = 0; i < data_len; ++i) {
+    byte* data;
+    if (data_size == sizeof(Data)) {
+      data = ((Data*)data_arr)[i].data_b;
+    } else if (data_size == sizeof(Data_d)) {
+      data = ((Data_d*)data_arr)[i].data_b;
+    } else {
+      throw "Not valid data size!";
+    }
+    for (; j < (last_byte_arr_i + (data_size * (i+1))); ++j) {
+      byte_arr[j] = data[(j - last_byte_arr_i) % data_size];
+    }
+  }
+  return j;
+}
+
 
 
 
@@ -121,6 +150,10 @@ Packet::Packet(byte type, int sender_id, int receiver_id, int source_id, byte* d
 Packet::Packet(Packet* packet, int sender_id, int receiver_id) {
     byte* data;
     int data_len = packet->getData(data);
+    defaultInit(packet->getType(), packet->getPacketId(), sender_id, receiver_id, packet->getSourceId(), data, data_len);
+}
+
+Packet::Packet(Packet* packet, int sender_id, int receiver_id, byte* data, int data_len) {
     defaultInit(packet->getType(), packet->getPacketId(), sender_id, receiver_id, packet->getSourceId(), data, data_len);
 }
 
@@ -351,6 +384,7 @@ void LoRaSENSE::processRrep(Packet* packet, int rssi) {
         #ifdef MIN_HOP
         if (hopCount >= MIN_HOP-1) {
         #endif
+        // Connected to network via LoRa
         connectTime = millis() - this->startConnectTime;
         this->parent_id = sourceId;
         this->hopCount = hopCount + 1;
@@ -358,6 +392,9 @@ void LoRaSENSE::processRrep(Packet* packet, int rssi) {
         connected = true;
         Serial.printf("New parent '%s'\n", String(sourceId, HEX));
         Serial.printf("Hop count: %i\n", this->hopCount);
+        Data_l rsta_data = {this->id};
+        Packet* rsta = new Packet(RSTA_TYP, this->id, this->parent_id, this->id, rsta_data.data_b, sizeof(rsta_data));
+        this->pushPacketToQueue(rsta);
         funcOnConnect();
         #ifdef MIN_HOP
         }
@@ -366,10 +403,9 @@ void LoRaSENSE::processRrep(Packet* packet, int rssi) {
 }
 
 void LoRaSENSE::processData(Packet* packet) {
-    // Send DACK/NACK packet
+    // Send DACK packet
     Packet* dack;
     if (packet->checkCRC()) {
-        // DACKs
         dack = new Packet(DACK_TYP, this->id, packet->getSenderId(), 0, nullptr, 0);
     }
     this->pushPacketToQueueFront(dack);
@@ -382,6 +418,30 @@ void LoRaSENSE::processData(Packet* packet) {
 void LoRaSENSE::processRerr(Packet* packet) {
     Serial.println("ROUTE ERROR packet received");
     reconnect();
+}
+
+void LoRaSENSE::processRsta(Packet* packet) {
+    // Send DACK packet
+    Packet* dack;
+    if (packet->checkCRC()) {
+        dack = new Packet(DACK_TYP, this->id, packet->getSenderId(), 0, nullptr, 0);
+    }
+    this->pushPacketToQueueFront(dack);
+
+    // Add received packet to queue, with updated sender and receiver IDs and route ledger
+    byte* data;
+    int data_len = packet->getData(data);
+    int new_data_len = data_len + sizeof(this->id);
+    byte new_data[new_data_len];
+    Data_l id_data = {this->id};
+    for (int i = 0; i < data_len; ++i) {
+        new_data[i] = data[i];
+    }
+    for (int i = 0; i < sizeof(id_data); ++i) {
+        new_data[data_len + i] = id_data.data_b[i];
+    }
+    Packet* newPacket = new Packet(packet, this->id, this->parent_id, new_data, new_data_len);
+    this->pushPacketToQueue(newPacket);
 }
 
 void LoRaSENSE::processDack(Packet* packet, int rssi) {
@@ -475,12 +535,18 @@ void LoRaSENSE::sendPacketToServer(Packet* packet) {
             }
         }
     } else if (packet->getType() == RSTA_TYP) {
-        int ledger_len = data_len / sizeof(Data_l);
+        int ledger_len = (data_len / sizeof(Data_l)) - 1; // first 4 bytes are for connection time
+        Data_l connTime;
         Data_l routeLedger[ledger_len];
+        connTime.data_b[0] = data[0];
+        connTime.data_b[1] = data[1];
+        connTime.data_b[2] = data[2];
+        connTime.data_b[3] = data[3];
+        jsonDoc["connTime"] = connTime.data_l;
         for (int i = 0; i < ledger_len; ++i) {
             Data_l routeNode = routeLedger[i];
             for (int j = 0; j < sizeof(Data_l); ++j) {
-                routeNode.data_b[j] = data[i*sizeof(Data_l) + j];
+                routeNode.data_b[j] = data[(i+1)*sizeof(Data_l) + j];
             }
             jsonDoc["route"][i] = routeNode.data_l;
         }
@@ -566,8 +632,12 @@ void LoRaSENSE::loop() {
             connected = true;
             connectingToWifi = false;
             httpClient = new HTTPClient();
-            Data_l data = {this->id};
-            Packet* rsta = new Packet(RSTA_TYP, this->id, this->id, this->id, data.data_b, sizeof(data));
+            Data_l connTime = {connectTime};
+            Data_l routeLedger = {this->id};
+            Data_l data[] = {connTime, routeLedger};
+            byte* data_b = new byte[2*sizeof(Data_l)];
+            int data_len = appendDataToByteArray(data_b, 0, data, 2, sizeof(Data_l));
+            Packet* rsta = new Packet(RSTA_TYP, this->id, this->id, this->id, data_b, data_len);
             this->pushPacketToQueue(rsta);
             funcOnConnect();
         } else if ((millis() - lastWifiAttempt) >= wifiTimeout && wifi_i < wifi_arr_len) {
@@ -623,6 +693,8 @@ void LoRaSENSE::loop() {
                     processRerr(packet);
                 } else if (packet->getType() == RREP_TYP && packet->getReceiverId() == this->getId()) {
                     processRrep(packet, rssi);
+                } else if (packet->getType() == RSTA_TYP && packet->getReceiverId() == this->getId()) {
+                    processRsta(packet);
                 } else if (packet->getType() == DATA_TYP && packet->getReceiverId() == this->getId()) {
                     processData(packet);
                 } else if (packet->getType() == DACK_TYP && packet->getReceiverId() == this->getId()) {
@@ -730,7 +802,7 @@ bool LoRaSENSE::sendPacketInQueue() {
             } else {
                 Serial.printf("Broadcasting %s packet %i...", packet->getTypeInString(), packet->getPacketId());
             }
-            if (packet->getType() == DATA_TYP) {
+            if (packet->getType() == DATA_TYP || packet->getType() == RSTA_TYP) {
                 waitForAck = true;
             }
             sendPacketViaLora(packet, waitForAck);

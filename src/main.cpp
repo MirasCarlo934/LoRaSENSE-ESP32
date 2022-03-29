@@ -7,15 +7,12 @@
 
 //Constants
 #define NODE_ID 0xAAAAAAAA
-// #define NODE_ACCESS_TOKEN "wGkmunxRiUWWfaLkLu8q"  // Thingsboard access token for node A
 // #define NODE_ID 0xBBBBBBBB
-// #define NODE_ACCESS_TOKEN "u24bOqqfCGKZ4IMc0M6j"  // Thingsboard access token for node B
 // #define NODE_ID 0xCCCCCCCC
-// #define NODE_ACCESS_TOKEN "XWJo5u7tAyvPGnduuqOa"  // Thingsboard access token for node C
 // #define NODE_ID 0xDDDDDDDD
 // #define NODE_ID 0xEEEEEEEE
 #define CYCLE_TIME 10000     // 10s, for testing only!!
-#define MOBILE_NODE true
+#define MOBILE_NODE false
 
 //Debugging
 // #define DATA_TESTING true   // set true to send randomized data to the network
@@ -28,6 +25,7 @@
 //Sensor libraries
 #include "DHT.h"
 #include "MQ7.h"
+#include "PMS.h"
 
 //Mobile node libraries
 #ifdef MOBILE_NODE
@@ -51,6 +49,8 @@
 #define DHT_TYPE 22
 #define MQ7_PIN 34
 #define MQ7_VCC 5.0
+#define PMS7003_RX 19
+#define PMS7003_TX 26
 
 //OLED pins
 #define OLED_SDA 21
@@ -98,6 +98,9 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
 //Sensors
 DHT dht(DHT_PIN, DHT_TYPE);
 MQ7 mq7(MQ7_PIN, MQ7_VCC);
+// SoftwareSerial pms_ss(PMS7003_TX, PMS7003_RX);
+// PMS pms(pms_ss);
+PMS::DATA pms_data;
 
 //LoRaSENSE
 class LoRaSENSE LoRaSENSE(node_ids, node_tokens, node_rsta_tokens, nodes, NODE_ID, ssid_arr, pwd_arr, wifi_arr_len, WIFI_TIMEOUT);
@@ -164,35 +167,6 @@ void onConnect() {
 //   display.display();
 // }
 
-/**
- * @brief Appends an array of Data unions to a given byte array.
- * 
- * @param byte_arr the byte array, MUST be instantiated with a capacity that can hold the appended Data bytes
- * @param last_byte_arr_i the byte_arr index of its last element
- * @param data_arr the Data union array to be appended to byte_arr
- * @param data_len the length of data_arr
- * @param data_size the size of each element of new_bytes_arr, MUST be either the size of a float or a double
- * @return int last array index added to byte_arr
- */
-int appendDataToByteArray(byte* &byte_arr, int last_byte_arr_i, void* data_arr, int data_len, int data_size) {
-  // byte_arr = new byte[data_size * data_len];
-  int j = last_byte_arr_i;
-  for (int i = 0; i < data_len; ++i) {
-    byte* data;
-    if (data_size == sizeof(Data)) {
-      data = ((Data*)data_arr)[i].data_b;
-    } else if (data_size == sizeof(Data_d)) {
-      data = ((Data_d*)data_arr)[i].data_b;
-    } else {
-      throw "Not valid data size!";
-    }
-    for (; j < (last_byte_arr_i + (data_size * (i+1))); ++j) {
-      byte_arr[j] = data[(j - last_byte_arr_i) % data_size];
-    }
-  }
-  return j;
-}
-
 void setup() {
   //initialize Serial Monitor
   Serial.begin(115200);
@@ -254,6 +228,20 @@ void loop() {
     #endif
   #endif
 
+  // Read from PMS7003
+  // while (pms_ss.available()) { 
+  //   pms_ss.read(); 
+  // }
+  // pms.requestRead();
+  // if (pms.readUntil(pms_data)) {
+  //     Serial.print("PM 1.0 (ug/m3): "); 
+  //     Serial.println(pms_data.PM_AE_UG_1_0);
+  //     Serial.print("PM 2.5 (ug/m3): "); 
+  //     Serial.println(pms_data.PM_AE_UG_2_5);
+  //     Serial.print("PM 10.0 (ug/m3): "); 
+  //     Serial.println(pms_data.PM_AE_UG_10_0);
+  // }
+
   if (millis() - lastCycle >= CYCLE_TIME) {
 
     lastCycle = millis(); // lastCycle must ALWAYS be reset every START of the cycle
@@ -283,6 +271,7 @@ void loop() {
       if (SENSORS_ON) {
         Serial.println("");
 
+        // Read from MQ-7 and DHT22
         float c = mq7.getPPM();
         float h = dht.readHumidity();       
         float t = dht.readTemperature();    // celsius

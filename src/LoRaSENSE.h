@@ -57,6 +57,8 @@ union Data_d {
     byte data_b[sizeof(double)];
 };
 
+int appendDataToByteArray(byte* &byte_arr, int last_byte_arr_i, void* data_arr, int data_len, int data_size);
+
 class Packet {
 
     private:
@@ -70,6 +72,7 @@ class Packet {
         Packet(byte* payload, int len);
         Packet(byte type, int sender_id, int receiver_id, int source_id, byte* data, int data_len);
         Packet(Packet* packet, int sender_id, int receiver_id);  // for DATA packet forwarding
+        Packet(Packet* packet, int sender_id, int receiver_id, byte* data, int data_len); // for RSTA packet forwarding
         ~Packet();
 
         // Class methods
@@ -158,6 +161,7 @@ class LoRaSENSE {
         void processRreq(Packet* packet);
         void processRrep(Packet* packet, int rssi);
         void processRerr(Packet* packet);
+        void processRsta(Packet* packet);
         void processData(Packet* packet);
         void processDack(Packet* packet, int rssi);
         void sendPacketViaLora(Packet* packet, bool waitForAck);
