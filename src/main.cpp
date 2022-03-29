@@ -6,8 +6,8 @@
 */
 
 //Constants
-#define NODE_ID 0xAAAAAAAA
-// #define NODE_ID 0xBBBBBBBB
+// #define NODE_ID 0xAAAAAAAA
+#define NODE_ID 0xBBBBBBBB
 // #define NODE_ID 0xCCCCCCCC
 // #define NODE_ID 0xDDDDDDDD
 // #define NODE_ID 0xEEEEEEEE

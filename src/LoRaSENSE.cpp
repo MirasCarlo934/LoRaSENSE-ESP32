@@ -392,8 +392,12 @@ void LoRaSENSE::processRrep(Packet* packet, int rssi) {
         connected = true;
         Serial.printf("New parent '%s'\n", String(sourceId, HEX));
         Serial.printf("Hop count: %i\n", this->hopCount);
-        Data_l rsta_data = {this->id};
-        Packet* rsta = new Packet(RSTA_TYP, this->id, this->parent_id, this->id, rsta_data.data_b, sizeof(rsta_data));
+        Data_l connTime = {connectTime};
+        Data_l routeLedger = {this->id};
+        Data_l data[] = {connTime, routeLedger};
+        byte* data_b = new byte[2*sizeof(Data_l)];
+        int data_len = appendDataToByteArray(data_b, 0, data, 2, sizeof(Data_l));
+        Packet* rsta = new Packet(RSTA_TYP, this->id, this->parent_id, this->id, data_b, data_len);
         this->pushPacketToQueue(rsta);
         funcOnConnect();
         #ifdef MIN_HOP
