@@ -88,7 +88,7 @@ class Packet {
         int getSourceId();
         int getReceiverId();
         int getPayload(byte* &payload);
-        int getData(byte* &data);
+        void getData(byte* data);
         int getLength();
         int getDataLength();
 

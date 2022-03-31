@@ -150,8 +150,9 @@ Packet::Packet(byte type, int sender_id, int receiver_id, int source_id, byte* d
 }
 
 Packet::Packet(Packet* packet, int sender_id, int receiver_id) {
-    byte* data;
-    int data_len = packet->getData(data);
+    int data_len = packet->getDataLength();
+    byte data[data_len];
+    packet->getData(data);
     defaultInit(packet->getType(), packet->getPacketId(), sender_id, receiver_id, packet->getSourceId(), data, data_len);
 }
 
@@ -304,12 +305,10 @@ int Packet::getPayload(byte* &payload) {
 
 // TODO: Maybe make this a direct reference instead of full-copy?
 // OR memory allocation should take place outside this function
-int Packet::getData(byte* &data) {
-    data = new byte[data_len];
+void Packet::getData(byte* data) {
     for (int i = 0; i < data_len; ++i) {
         data[i] = payload[i+20];
     }
-    return data_len;
 }
 
 int Packet::getSenderId() {
@@ -341,6 +340,10 @@ int Packet::getReceiverId() {
 
 int Packet::getLength() {
     return this->len;
+}
+
+int Packet::getDataLength() {
+    return this->data_len;
 }
 
 
@@ -381,8 +384,9 @@ void LoRaSENSE::processRreq(Packet* packet) {
 
 void LoRaSENSE::processRrep(Packet* packet, int rssi) {
     int sourceId = packet->getSourceId();
-    byte* data;
-    int data_len = packet->getData(data);
+    int data_len = packet->getDataLength();
+    byte data[data_len];
+    packet->getData(data);
     int hopCount = 0;
     hopCount = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
     Serial.printf("RREP from %s (hop count: %i, RSSI: %i)\n", String(sourceId, HEX), hopCount, rssi);
@@ -439,8 +443,9 @@ void LoRaSENSE::processRsta(Packet* packet) {
     this->pushPacketToQueueFront(dack);
 
     // Add received packet to queue, with updated sender and receiver IDs and route ledger
-    byte* data;
-    int data_len = packet->getData(data);
+    int data_len = packet->getDataLength();
+    byte data[data_len];
+    packet->getData(data);
     int new_data_len = data_len + sizeof(this->id);
     byte new_data[new_data_len];
     Data_l id_data = {this->id};
@@ -487,8 +492,9 @@ void LoRaSENSE::sendPacketViaLora(Packet* packet, bool waitForAck) {
 
 void LoRaSENSE::sendPacketToServer(Packet* packet) {
     StaticJsonDocument<256> jsonDoc;
-    byte* data;
-    int data_len = packet->getData(data);
+    int data_len = packet->getDataLength();
+    byte data[data_len];
+    packet->getData(data);
     char* accessToken;
 
     if (packet->getType() == DATA_TYP) {
@@ -568,8 +574,6 @@ void LoRaSENSE::sendPacketToServer(Packet* packet) {
             }
         }
     }
-    
-    delete data;
 
     String jsonStr = "";
     serializeJson(jsonDoc, jsonStr);
