@@ -57,7 +57,7 @@ union Data_d {
     byte data_b[sizeof(double)];
 };
 
-int appendDataToByteArray(byte* &byte_arr, int last_byte_arr_i, void* data_arr, int data_len, int data_size);
+int appendDataToByteArray(byte* byte_arr, int last_byte_arr_i, void* data_arr, int data_len, int data_size);
 
 class Packet {
 

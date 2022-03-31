@@ -40,7 +40,7 @@ void empty() {
  * @param data_size the size of each element of new_bytes_arr, MUST be either the size of a float or a double
  * @return int last array index added to byte_arr
  */
-int appendDataToByteArray(byte* &byte_arr, int last_byte_arr_i, void* data_arr, int data_len, int data_size) {
+int appendDataToByteArray(byte* byte_arr, int last_byte_arr_i, void* data_arr, int data_len, int data_size) {
   // byte_arr = new byte[data_size * data_len];
   int j = last_byte_arr_i;
   for (int i = 0; i < data_len; ++i) {
@@ -235,7 +235,7 @@ void Packet::defaultInit(byte type, int packet_id, int sender_id, int receiver_i
 }
 
 bool Packet::checkCRC() {
-    byte* raw_payload = new byte[len-2];
+    byte raw_payload[len-2];
     uint16_t crc_orig = (payload[2] << 8) | payload[3];
 
     raw_payload[0] = payload[0];
@@ -405,7 +405,7 @@ void LoRaSENSE::processRrep(Packet* packet, int rssi) {
         Data_l connTime = {connectTime};
         Data_l routeLedger = {this->id};
         Data_l data[] = {connTime, routeLedger};
-        byte* data_b = new byte[2*sizeof(Data_l)];
+        byte data_b[2*sizeof(Data_l)];
         int data_len = appendDataToByteArray(data_b, 0, data, 2, sizeof(Data_l));
         Packet* rsta = new Packet(RSTA_TYP, this->id, this->parent_id, this->id, data_b, data_len);
         this->pushPacketToQueue(rsta);
@@ -720,7 +720,7 @@ void LoRaSENSE::loop() {
             } else {
                 Serial.println("Received erroneous packet");
             }
-            // TODO: packet MUST be deleted to free memory resources!!
+            // Packet MUST be deleted to free memory resources!!
             delete packet;
         }
     }
