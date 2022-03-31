@@ -117,8 +117,10 @@ Packet* PacketQueue::peekFront() {
 
 Packet* PacketQueue::popFront() {
     if (this->head != nullptr) {
-        Packet* packet = this->head->packet;
-        this->head = this->head->next;
+        PacketQueueNode* headNode = this->head;
+        Packet* packet = headNode->packet;
+        this->head = headNode->next;
+        delete headNode;
         return packet;
     } else {
         throw 0;
@@ -227,6 +229,8 @@ void Packet::defaultInit(byte type, int packet_id, int sender_id, int receiver_i
     this->payload = payload;
     this->len = len;
     this->data_len = data_len;
+    
+    delete raw_payload;
 }
 
 bool Packet::checkCRC() {
@@ -298,6 +302,8 @@ int Packet::getPayload(byte* &payload) {
     return this->len;
 }
 
+// TODO: Maybe make this a direct reference instead of full-copy?
+// OR memory allocation should take place outside this function
 int Packet::getData(byte* &data) {
     data = new byte[data_len];
     for (int i = 0; i < data_len; ++i) {
@@ -562,6 +568,9 @@ void LoRaSENSE::sendPacketToServer(Packet* packet) {
             }
         }
     }
+    
+    delete data;
+
     String jsonStr = "";
     serializeJson(jsonDoc, jsonStr);
     // DEBUG
@@ -712,7 +721,8 @@ void LoRaSENSE::loop() {
         }
     }
 
-    if (waitingForAck) { // Check if node is currently waiting for a DACK/NACK
+    // Check if node is currently waiting for a DACK/NACK
+    if (waitingForAck) { 
         if (millis() > lastSendAttempt + ACK_TIMEOUT) {
             // ACK timeout
             if (!resent) {

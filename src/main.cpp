@@ -11,7 +11,7 @@
 // #define NODE_ID 0xCCCCCCCC
 // #define NODE_ID 0xDDDDDDDD
 // #define NODE_ID 0xEEEEEEEE
-#define CYCLE_TIME 10000     // 10s, for testing only!!
+#define CYCLE_TIME 5000     // 10s, for testing only!!
 #define MOBILE_NODE false
 
 //Debugging
@@ -244,6 +244,12 @@ void loop() {
 
   if (millis() - lastCycle >= CYCLE_TIME) {
 
+    // DEBUGGING FOR MEMORY LEAKS
+      Serial.println("\n----HEAP DEBUGGING----");
+      Serial.println(ESP.getFreeHeap());
+      Serial.println();
+    //
+
     lastCycle = millis(); // lastCycle must ALWAYS be reset every START of the cycle
 
     #ifdef DATA_TESTING
@@ -313,6 +319,7 @@ void loop() {
             int data_len = appendDataToByteArray(data, 0, data_arr, 5, sizeof(Data));
             data_len = appendDataToByteArray(data, data_len, gps_data_arr, 2, sizeof(Data_d));
             Packet* dataPkt = new Packet(DATA_TYP, LoRaSENSE.getId(), LoRaSENSE.getParentId(), LoRaSENSE.getId(), data, data_len);
+            delete data;
             Serial.printf("Adding data packet %i to queue...\n", dataPkt->getPacketId());
             LoRaSENSE.pushPacketToQueue(dataPkt);
           }
