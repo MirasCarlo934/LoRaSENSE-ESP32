@@ -11,7 +11,7 @@
 // #define NODE_ID 0xCCCCCCCC
 // #define NODE_ID 0xDDDDDDDD
 // #define NODE_ID 0xEEEEEEEE
-#define CYCLE_TIME 6503     // 10s, for testing only!!
+#define CYCLE_TIME 10000     // 10s, for testing only!!
 #define MOBILE_NODE false
 
 //Debugging
@@ -85,9 +85,15 @@ double node_coords[][2] = {
   #endif
 #endif
 
-//Location
+//Location and Sensor data
 double last_lat = 0; // last recorded latitude
 double last_lng = 0; // last recorded longitude
+float last_co = 0;
+float last_temp = 0;
+float last_humid = 0;
+float last_pm2_5 = 0;
+float last_pm10 = 0;
+uint32_t orig_free_heap = 0;
 
 //Timekeeping
 unsigned long lastCycle = 0; // describes the time from which the LAST DATA CYCLE started, not the actual last data packet sent
@@ -157,6 +163,28 @@ void onConnect() {
   display.display();
 }
 
+void displayInfo() {
+  display.clearDisplay();
+  display.setTextColor(WHITE);
+  display.setCursor(0,0);
+  String idStr = String(LoRaSENSE.getId(), HEX);
+  idStr.toUpperCase();
+  String line1 = idStr + " (" + LoRaSENSE.getHopCount() + ")";
+  display.print(line1);
+  display.setCursor(0,10);
+  display.printf("T: %.2f | H: %.2f", last_temp, last_humid);
+  display.setCursor(0,20);
+  display.printf("2.5: %.2f", last_pm2_5);
+  display.setCursor(0,30);
+  display.printf("10: %.2f", last_pm10);
+  display.setCursor(0,40);
+  display.printf("CO: %.2f", last_co);
+  display.setCursor(0,50);
+  uint32_t free_heap = ESP.getFreeHeap();
+  display.printf("HEAP: %u", free_heap);
+  display.display();
+}
+
 // void displayGpsData(double lat, double lng) {
 //   display.clearDisplay();
 //   display.setTextColor(WHITE);
@@ -192,6 +220,9 @@ void setup() {
   //initialize sensors
   dht.begin();
   Serial.println("Sensors initialized");
+
+  //initialize variables
+  orig_free_heap = ESP.getFreeHeap();
 
   LoRaSENSE.setAfterInit(&afterInit);
   LoRaSENSE.setOnConnecting(&onConnecting);
@@ -302,6 +333,13 @@ void loop() {
         Serial.printf("Temp: %f\n", t);
         Serial.printf("Heat Index: %f\n", hic);
         Serial.printf("Next reading in %u ms\n\n", CYCLE_TIME);
+
+        last_humid = h;
+        last_temp = t;
+        last_co = c;
+        last_pm10 = 0;
+        last_pm2_5 = 0;
+        displayInfo();
 
         #ifdef DATA_SEND
           // Send data
