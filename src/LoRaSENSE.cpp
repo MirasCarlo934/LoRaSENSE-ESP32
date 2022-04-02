@@ -364,6 +364,7 @@ LoRaSENSE::LoRaSENSE(unsigned int* node_ids, char** node_tokens, char** node_rst
     this->funcAfterInit = &empty;
     this->funcOnConnecting = &empty;
     this->funcOnConnect = &empty;
+    this->funcOnSend = &empty;
 }
 
 LoRaSENSE::~LoRaSENSE() {
@@ -469,6 +470,7 @@ void LoRaSENSE::processDack(Packet* packet, int rssi) {
     resent = false;
     Packet* sentPacket = packetQueue.popFront();
     delete sentPacket;
+    funcOnSend();
 }
 
 void LoRaSENSE::sendPacketViaLora(Packet* packet, bool waitForAck) {
@@ -590,6 +592,7 @@ void LoRaSENSE::sendPacketToServer(Packet* packet) {
         Serial.printf("sent");
         packetQueue.popFront();
         delete packet;
+        funcOnSend();
     } else if (httpResponseCode >= 400) {
         Serial.printf("error(%i)", httpResponseCode);
         Serial.println(httpClient->getString());
@@ -858,6 +861,10 @@ void LoRaSENSE::setOnConnecting(void funcOnConnecting()) {
 
 void LoRaSENSE::setOnConnect(void funcOnConnect()) {
     this->funcOnConnect = std::bind(funcOnConnect);
+}
+
+void LoRaSENSE::setOnSend(void funcOnSend()) {
+    this->funcOnSend = std::bind(funcOnSend);
 }
 
 unsigned int LoRaSENSE::getId() {

@@ -2,7 +2,7 @@
 #define LORASENSE_H
 
 //Debugging
-#define MIN_HOP 0
+#define MIN_HOP 1
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -153,9 +153,10 @@ class LoRaSENSE {
         PacketQueue packetQueue;
 
         // Callback variables
-        std::function<void()> funcAfterInit;
-        std::function<void()> funcOnConnecting;
-        std::function<void()> funcOnConnect;
+        std::function<void()> funcAfterInit;    // callback after LoRaSENSE successfully initializes
+        std::function<void()> funcOnConnecting; // callback when node is currently connecting to network
+        std::function<void()> funcOnConnect;    // callback when node successfully connects to network
+        std::function<void()> funcOnSend;       // callback when a packet has been successfully sent
 
         // Packet processing functions
         void processRreq(Packet* packet);
@@ -183,6 +184,7 @@ class LoRaSENSE {
         void setAfterInit(void funcAfterInit());
         void setOnConnecting(void funcOnConnecting());
         void setOnConnect(void funcOnConnect());
+        void setOnSend(void funcOnSend());
         unsigned int getId();
         int getParentId();
         int getHopCount();

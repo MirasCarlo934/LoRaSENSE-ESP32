@@ -7,9 +7,9 @@
 
 //Constants
 // #define NODE_ID 0xAAAAAAAA
-#define NODE_ID 0xBBBBBBBB
+// #define NODE_ID 0xBBBBBBBB
 // #define NODE_ID 0xCCCCCCCC
-// #define NODE_ID 0xDDDDDDDD
+#define NODE_ID 0xDDDDDDDD
 // #define NODE_ID 0xEEEEEEEE
 #define CYCLE_TIME 10000     // 10s, for testing only!!
 #define MOBILE_NODE false
@@ -227,6 +227,7 @@ void setup() {
   LoRaSENSE.setAfterInit(&afterInit);
   LoRaSENSE.setOnConnecting(&onConnecting);
   LoRaSENSE.setOnConnect(&onConnect);
+  LoRaSENSE.setOnSend(&displayInfo);
   LoRaSENSE.setup();
 }
 
@@ -274,12 +275,6 @@ void loop() {
   // }
 
   if (millis() - lastCycle >= CYCLE_TIME) {
-
-    // DEBUGGING FOR MEMORY LEAKS
-      Serial.println("\n----HEAP DEBUGGING----");
-      Serial.println(ESP.getFreeHeap());
-      Serial.println();
-    //
 
     lastCycle = millis(); // lastCycle must ALWAYS be reset every START of the cycle
 
@@ -332,6 +327,7 @@ void loop() {
         Serial.printf("Humidity: %f\n", h);
         Serial.printf("Temp: %f\n", t);
         Serial.printf("Heat Index: %f\n", hic);
+        Serial.printf("Free Heap: %u\n", ESP.getFreeHeap());
         Serial.printf("Next reading in %u ms\n\n", CYCLE_TIME);
 
         last_humid = h;
