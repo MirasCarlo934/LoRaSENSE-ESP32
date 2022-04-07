@@ -12,7 +12,7 @@
 // #define NODE_ID 0xDDDDDDDD
 // #define NODE_ID 0xEEEEEEEE
 #define CYCLE_TIME 10000     // 10s, for testing only!!
-#define MOBILE_NODE true
+#define MOBILE_NODE false
 
 //Debugging
 // #define DATA_TESTING true   // set true to send randomized data to the network
@@ -21,6 +21,7 @@
 
 #include <Arduino.h>
 #include "LoRaSENSE.h"
+#include "SoftwareSerial.h"
 
 //Sensor libraries
 #include "DHT.h"
@@ -30,7 +31,6 @@
 //Mobile node libraries
 #ifdef MOBILE_NODE
   #if MOBILE_NODE == true
-    #include "SoftwareSerial.h"
     #include "TinyGPS++.h"
     #define GPS_RX 36
     #define GPS_TX 39
@@ -174,13 +174,13 @@ void displayInfo() {
   String line1 = idStr + " (" + LoRaSENSE.getHopCount() + ")";
   display.print(line1);
   display.setCursor(0,10);
-  display.printf("T: %.2f | H: %.2f", last_temp, last_humid);
+  display.printf("T:%.2f | H:%.2f", last_temp, last_humid);
   display.setCursor(0,20);
-  display.printf("2.5: %.2f", last_pm2_5);
+  display.printf("1:%.2f | 2.5:%.2f", last_pm1, last_pm2_5);
   display.setCursor(0,30);
-  display.printf("10: %.2f", last_pm10);
+  display.printf("10:%.2f", last_pm10);
   display.setCursor(0,40);
-  display.printf("CO: %.2f", last_co);
+  display.printf("CO:%.2f", last_co);
   display.setCursor(0,50);
   uint32_t free_heap = ESP.getFreeHeap();
   display.printf("HEAP: %u", free_heap);
