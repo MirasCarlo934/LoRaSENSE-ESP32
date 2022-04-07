@@ -2,7 +2,7 @@
 #define LORASENSE_H
 
 //Debugging
-#define MIN_HOP 1
+#define MIN_HOP 0
 
 #include <Arduino.h>
 #include <ArduinoJson.h>

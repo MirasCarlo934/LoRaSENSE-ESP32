@@ -7,12 +7,12 @@
 
 //Constants
 // #define NODE_ID 0xAAAAAAAA
-// #define NODE_ID 0xBBBBBBBB
+#define NODE_ID 0xBBBBBBBB
 // #define NODE_ID 0xCCCCCCCC
-#define NODE_ID 0xDDDDDDDD
+// #define NODE_ID 0xDDDDDDDD
 // #define NODE_ID 0xEEEEEEEE
 #define CYCLE_TIME 10000     // 10s, for testing only!!
-#define MOBILE_NODE false
+#define MOBILE_NODE true
 
 //Debugging
 // #define DATA_TESTING true   // set true to send randomized data to the network
@@ -50,7 +50,8 @@
 #define MQ7_PIN 34
 #define MQ7_VCC 5.0
 #define PMS7003_RX 19
-#define PMS7003_TX 26
+#define PMS7003_TX 15
+#define PMS7003_BAUD 9600
 
 //OLED pins
 #define OLED_SDA 21
@@ -91,6 +92,7 @@ double last_lng = 0; // last recorded longitude
 float last_co = 0;
 float last_temp = 0;
 float last_humid = 0;
+float last_pm1 = 0;
 float last_pm2_5 = 0;
 float last_pm10 = 0;
 uint32_t orig_free_heap = 0;
@@ -104,8 +106,8 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
 //Sensors
 DHT dht(DHT_PIN, DHT_TYPE);
 MQ7 mq7(MQ7_PIN, MQ7_VCC);
-// SoftwareSerial pms_ss(PMS7003_TX, PMS7003_RX);
-// PMS pms(pms_ss);
+SoftwareSerial pms_ss(PMS7003_TX, PMS7003_RX);
+PMS pms(pms_ss);
 PMS::DATA pms_data;
 
 //LoRaSENSE
@@ -203,6 +205,11 @@ void setup() {
       ss.begin(GPS_BAUD);
     #endif
   #endif
+  #ifdef SENSORS_ON
+    #if SENSORS_ON == true
+      pms_ss.begin(PMS7003_BAUD);
+    #endif
+  #endif
 
   //reset OLED display via software
   pinMode(OLED_RST, OUTPUT);
@@ -261,18 +268,21 @@ void loop() {
   #endif
 
   // Read from PMS7003
-  // while (pms_ss.available()) { 
-  //   pms_ss.read(); 
-  // }
-  // pms.requestRead();
-  // if (pms.readUntil(pms_data)) {
-  //     Serial.print("PM 1.0 (ug/m3): "); 
-  //     Serial.println(pms_data.PM_AE_UG_1_0);
-  //     Serial.print("PM 2.5 (ug/m3): "); 
-  //     Serial.println(pms_data.PM_AE_UG_2_5);
-  //     Serial.print("PM 10.0 (ug/m3): "); 
-  //     Serial.println(pms_data.PM_AE_UG_10_0);
-  // }
+  while (pms_ss.available()) { 
+    pms_ss.read(); 
+  }
+  pms.requestRead();
+  if (pms.readUntil(pms_data)) {
+    last_pm1 = pms_data.PM_AE_UG_1_0;
+    last_pm2_5 = pms_data.PM_AE_UG_2_5;
+    last_pm10 = pms_data.PM_AE_UG_10_0;
+      // Serial.print("PM 1.0 (ug/m3): "); 
+      // Serial.println(pms_data.PM_AE_UG_1_0);
+      // Serial.print("PM 2.5 (ug/m3): "); 
+      // Serial.println(pms_data.PM_AE_UG_2_5);
+      // Serial.print("PM 10.0 (ug/m3): "); 
+      // Serial.println(pms_data.PM_AE_UG_10_0);
+  }
 
   if (millis() - lastCycle >= CYCLE_TIME) {
 
@@ -300,7 +310,7 @@ void loop() {
 
     #ifdef SENSORS_ON
       // Collect data from sensors
-      if (SENSORS_ON) {
+      #if SENSORS_ON == true
         Serial.println("");
 
         // Read from MQ-7 and DHT22
@@ -327,37 +337,41 @@ void loop() {
         Serial.printf("Humidity: %f\n", h);
         Serial.printf("Temp: %f\n", t);
         Serial.printf("Heat Index: %f\n", hic);
+        Serial.printf("PM 1.0: %f\n", last_pm1);
+        Serial.printf("PM 2.5: %f\n", last_pm2_5);
+        Serial.printf("PM 10.0: %f\n", last_pm10);
         Serial.printf("Free Heap: %u\n", ESP.getFreeHeap());
         Serial.printf("Next reading in %u ms\n\n", CYCLE_TIME);
 
         last_humid = h;
         last_temp = t;
         last_co = c;
-        last_pm10 = 0;
-        last_pm2_5 = 0;
         displayInfo();
 
         #ifdef DATA_SEND
           // Send data
           if (DATA_SEND && LoRaSENSE.isConnected()) {
-            Data pm2_5 = {0.0};
-            Data pm10 = {0.0};
+            Data pm1 = {last_pm1};
+            Data pm2_5 = {last_pm2_5};
+            Data pm10 = {last_pm10};
             Data co = {c};
             Data temp = {t};
             Data humid = {h};
             Data_d lat = {last_lat};
             Data_d lng = {last_lng};
-            Data data_arr[] = {pm2_5, pm10, co, temp, humid};
+
+            int data_arr_len = 6;
+            Data data_arr[data_arr_len] = {pm1, pm2_5, pm10, co, temp, humid};
             Data_d gps_data_arr[] = {lat, lng};
-            byte data[5*sizeof(Data) + 2*sizeof(Data_d)];
-            int data_len = appendDataToByteArray(data, 0, data_arr, 5, sizeof(Data));
+            byte data[data_arr_len*sizeof(Data) + 2*sizeof(Data_d)];
+            int data_len = appendDataToByteArray(data, 0, data_arr, data_arr_len, sizeof(Data));
             data_len = appendDataToByteArray(data, data_len, gps_data_arr, 2, sizeof(Data_d));
             Packet* dataPkt = new Packet(DATA_TYP, LoRaSENSE.getId(), LoRaSENSE.getParentId(), LoRaSENSE.getId(), data, data_len);
             Serial.printf("Adding data packet %i to queue...\n", dataPkt->getPacketId());
             LoRaSENSE.pushPacketToQueue(dataPkt);
           }
         #endif
-      }
+      #endif
     #endif
 
   }
