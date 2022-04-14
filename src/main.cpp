@@ -5,28 +5,49 @@
   3. Set DATA_TESTING to true if testing with randomized sensor values
 */
 
-//Constants
+// Constants
 // #define NODE_ID 0xAAAAAAAA
 #define NODE_ID 0xBBBBBBBB
 // #define NODE_ID 0xCCCCCCCC
 // #define NODE_ID 0xDDDDDDDD
 // #define NODE_ID 0xEEEEEEEE
-#define CYCLE_TIME 10000     // 10s, for testing only!!
 #define MOBILE_NODE false
 
-//Debugging
-// #define DATA_TESTING true   // set true to send randomized data to the network
-#define DATA_SEND true      // set true to send sensor data to the network
-#define SENSORS_ON true     // set true to read data from sensors
+// Debugging
+// #define DATA_TESTING true        // set true to send randomized data to the network
+#define DATA_SEND true              // set true to send sensor data to the network
+#define SENSORS_ON true             // set true to read data from sensors
+#define DHT22_ON true
+#define MQ7_ON false
+#define PMS7003_ON true
+
+#define MIN_HOP 0
+#define CYCLE_TIME 5000            // 5s, for testing only
+// #define CYCLE_TIME 150000           // 150s, in accordance with the 60s-90s cycle time of MQ-7
+#define WIFI_TIMEOUT 30000          // 30s
+#define RREQ_TIMEOUT 5000           // 5s
+#define NETWORK_RECORD_TIME CYCLE_TIME*10 // 10*150s cycle time
 
 #include <Arduino.h>
 #include "LoRaSENSE.h"
 #include "SoftwareSerial.h"
 
 //Sensor libraries
-#include "DHT.h"
-#include "MQ7.h"
-#include "PMS.h"
+#ifdef DHT22_ON
+  #if DHT22_ON == true
+    #include "DHT.h"
+  #endif
+#endif
+#ifdef MQ7_ON
+  #if MQ7_ON == true
+    #include "MQ7.h"
+  #endif
+#endif
+#ifdef PMS7003_ON
+  #if PMS7003_ON == true
+    #include "PMS.h"
+  #endif
+#endif
 
 //Mobile node libraries
 #ifdef MOBILE_NODE
@@ -70,6 +91,7 @@ const int nodes = 5;
 unsigned int node_ids[nodes] = {0xAAAAAAAA, 0xBBBBBBBB, 0xCCCCCCCC, 0xDDDDDDDD, 0xEEEEEEEE};
 char* node_tokens[nodes] = {"wGkmunxRiUWWfaLkLu8q", "u24bOqqfCGKZ4IMc0M6j", "XWJo5u7tAyvPGnduuqOa", "KESffXVZoedYJPEdQvTa", "yt5a5JwN9YT5XDblw7Fj"};
 char* node_rsta_tokens[nodes] = {"egG6V9ycretmen06GVLZ", "e8hFBf7Oo0BcpznuTeRR", "dJxapl6dSAgBLEsoT5qh", "Jg5L5EYkDvsKzGu7oblO", "fqws1MXC314MeU6wzxdI"};
+char* node_netr_tokens[nodes] = {"jve08ZmGmbxPHMvNzDLI", "efG7s1jHM76dyKbE1Run", "64yvwslOeOEKrjbZy1wB", "D7IrQSuII5d3HN5vP0HB", "OVDjzUZI1BbfHLkB5zMq"};
 double node_coords[][2] = {
   {14.209234046941177, 121.06352544064003},
   {14.207157320684628, 121.06521845071254},
@@ -87,6 +109,7 @@ double node_coords[][2] = {
 #endif
 
 //Location and Sensor data
+long cycles = 0;     // sensor cycles made
 double last_lat = 0; // last recorded latitude
 double last_lng = 0; // last recorded longitude
 float last_co = 0;
@@ -99,19 +122,96 @@ uint32_t orig_free_heap = 0;
 
 //Timekeeping
 unsigned long lastCycle = 0; // describes the time from which the LAST DATA CYCLE started, not the actual last data packet sent
+unsigned long lastNetworkRecord = 0;  // describes the time from which the LAST NETWORK RECORD has been sent
 
 //Screen
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
 
 //Sensors
-DHT dht(DHT_PIN, DHT_TYPE);
-MQ7 mq7(MQ7_PIN, MQ7_VCC);
-SoftwareSerial pms_ss(PMS7003_TX, PMS7003_RX);
-PMS pms(pms_ss);
-PMS::DATA pms_data;
+#ifdef DHT22_ON
+  #if DHT22_ON == true
+    DHT dht(DHT_PIN, DHT_TYPE);
+  #endif
+#endif
+#ifdef MQ7_ON
+  #if MQ7_ON == true
+    MQ7 mq7(MQ7_PIN, MQ7_VCC);
+  #endif
+#endif
+#ifdef PMS7003_ON
+  #if PMS7003_ON == true
+    SoftwareSerial pms_ss(PMS7003_TX, PMS7003_RX);
+    PMS pms(pms_ss);
+    PMS::DATA pms_data;
+  #endif
+#endif
 
 //LoRaSENSE
-class LoRaSENSE LoRaSENSE(node_ids, node_tokens, node_rsta_tokens, nodes, NODE_ID, ssid_arr, pwd_arr, wifi_arr_len, WIFI_TIMEOUT);
+class LoRaSENSE LoRaSENSE(node_ids, node_tokens, node_rsta_tokens, node_netr_tokens, nodes, NODE_ID, ssid_arr, pwd_arr, wifi_arr_len, MIN_HOP, WIFI_TIMEOUT, RREQ_TIMEOUT, CYCLE_TIME);
+
+class NetworkRecordNode {
+    public:
+        int packetId;
+        long packetRtt;
+        NetworkRecordNode* next;
+        NetworkRecordNode(int packetId, long packetRtt) {
+            this->packetId = packetId;
+            this->packetRtt = packetRtt;
+            next = nullptr;
+        }
+};
+
+//Network record data
+NetworkRecordNode* networkRecord = nullptr;
+int currentPacketId = 0;          
+long currentPacketRtt = 0;   // time in millis when the current packet was sent
+
+int countNetworkRecord() {
+    NetworkRecordNode* head = networkRecord;
+    int count = 0;
+    while (head != nullptr) {
+        ++count;
+        head = head->next;
+    }
+    return count;
+}
+
+void addNetworkRecord(int packetId, long packetRtt) {
+    // DEBUG
+        Serial.printf("Adding new network record (Packet ID: %i, RTT: %li) [count: %i]\n", packetId, packetRtt, countNetworkRecord());
+    //
+    if (networkRecord == nullptr) {
+        networkRecord = new NetworkRecordNode(packetId, packetRtt);
+        return;
+    }
+    NetworkRecordNode* head = networkRecord;
+    while (head->next != nullptr) {
+        head = head->next;
+    }
+    head->next = new NetworkRecordNode(packetId, packetRtt);
+}
+
+void displayInfo() {
+  display.clearDisplay();
+  display.setTextColor(WHITE);
+  display.setCursor(0,0);
+  String idStr = String(LoRaSENSE.getId(), HEX);
+  idStr.toUpperCase();
+  String line1 = idStr + " (" + LoRaSENSE.getHopCount() + ")   (" + cycles + ")";
+  display.print(line1);
+  display.setCursor(0,10);
+  display.printf("T:%.2f | H:%.2f", last_temp, last_humid);
+  display.setCursor(0,20);
+  display.printf("1:%.2f | 2.5:%.2f", last_pm1, last_pm2_5);
+  display.setCursor(0,30);
+  display.printf("10:%.2f", last_pm10);
+  display.setCursor(0,40);
+  display.printf("CO:%.2f", last_co);
+  display.setCursor(0,50);
+  uint32_t free_heap = ESP.getFreeHeap();
+  display.printf("HEAP: %u", free_heap);
+  display.display();
+}
 
 void afterInit() {
   display.clearDisplay();
@@ -165,26 +265,19 @@ void onConnect() {
   display.display();
 }
 
-void displayInfo() {
-  display.clearDisplay();
-  display.setTextColor(WHITE);
-  display.setCursor(0,0);
-  String idStr = String(LoRaSENSE.getId(), HEX);
-  idStr.toUpperCase();
-  String line1 = idStr + " (" + LoRaSENSE.getHopCount() + ")";
-  display.print(line1);
-  display.setCursor(0,10);
-  display.printf("T:%.2f | H:%.2f", last_temp, last_humid);
-  display.setCursor(0,20);
-  display.printf("1:%.2f | 2.5:%.2f", last_pm1, last_pm2_5);
-  display.setCursor(0,30);
-  display.printf("10:%.2f", last_pm10);
-  display.setCursor(0,40);
-  display.printf("CO:%.2f", last_co);
-  display.setCursor(0,50);
-  uint32_t free_heap = ESP.getFreeHeap();
-  display.printf("HEAP: %u", free_heap);
-  display.display();
+void onSend() {
+  currentPacketRtt = millis();
+  if (!LoRaSENSE.packetQueueIsEmpty() && currentPacketId != LoRaSENSE.peekPacketQueue()->getPacketId()) {
+    currentPacketId = LoRaSENSE.peekPacketQueue()->getPacketId();
+  }
+}
+
+void onSendSuccess() {
+  // add network record
+  addNetworkRecord(currentPacketId, millis() - currentPacketRtt);
+
+  // display on screen
+  displayInfo();
 }
 
 // void displayGpsData(double lat, double lng) {
@@ -200,13 +293,14 @@ void displayInfo() {
 void setup() {
   //initialize Serial Monitor
   Serial.begin(115200);
+  
   #ifdef MOBILE_NODE
     #if MOBILE_NODE == true
       ss.begin(GPS_BAUD);
     #endif
   #endif
-  #ifdef SENSORS_ON
-    #if SENSORS_ON == true
+  #ifdef PMS7003_ON
+    #if PMS7003_ON == true
       pms_ss.begin(PMS7003_BAUD);
     #endif
   #endif
@@ -225,7 +319,11 @@ void setup() {
   }
 
   //initialize sensors
-  dht.begin();
+  #ifdef DHT22_ON
+    #if DHT22_ON == true
+      dht.begin();
+    #endif
+  #endif
   Serial.println("Sensors initialized");
 
   //initialize variables
@@ -234,7 +332,8 @@ void setup() {
   LoRaSENSE.setAfterInit(&afterInit);
   LoRaSENSE.setOnConnecting(&onConnecting);
   LoRaSENSE.setOnConnect(&onConnect);
-  LoRaSENSE.setOnSend(&displayInfo);
+  LoRaSENSE.setOnSendSuccess(&onSendSuccess);
+  LoRaSENSE.setOnSend(&onSend);
   LoRaSENSE.setup();
 }
 
@@ -268,21 +367,19 @@ void loop() {
   #endif
 
   // Read from PMS7003
-  while (pms_ss.available()) { 
-    pms_ss.read(); 
-  }
-  pms.requestRead();
-  if (pms.readUntil(pms_data)) {
-    last_pm1 = pms_data.PM_AE_UG_1_0;
-    last_pm2_5 = pms_data.PM_AE_UG_2_5;
-    last_pm10 = pms_data.PM_AE_UG_10_0;
-      // Serial.print("PM 1.0 (ug/m3): "); 
-      // Serial.println(pms_data.PM_AE_UG_1_0);
-      // Serial.print("PM 2.5 (ug/m3): "); 
-      // Serial.println(pms_data.PM_AE_UG_2_5);
-      // Serial.print("PM 10.0 (ug/m3): "); 
-      // Serial.println(pms_data.PM_AE_UG_10_0);
-  }
+  #ifdef PMS7003_ON
+    #if PMS7003_ON == true
+      while (pms_ss.available()) { 
+        pms_ss.read(); 
+      }
+      pms.requestRead();
+      if (pms.readUntil(pms_data)) {
+        last_pm1 = pms_data.PM_AE_UG_1_0;
+        last_pm2_5 = pms_data.PM_AE_UG_2_5;
+        last_pm10 = pms_data.PM_AE_UG_10_0;
+      }
+    #endif
+  #endif
 
   if (millis() - lastCycle >= CYCLE_TIME) {
 
@@ -312,26 +409,34 @@ void loop() {
       // Collect data from sensors
       #if SENSORS_ON == true
         Serial.println("");
+        Serial.printf("CYCLE %li\n", cycles);
+        ++cycles;
 
         // Read from MQ-7 and DHT22
-        float c = mq7.getPPM();
-        float h = dht.readHumidity();       
-        float t = dht.readTemperature();    // celsius
+        float c = 0, h = 0, t = 0;
 
-        if (isnan(h) || isnan(t)) {
-            Serial.println("Failed to read from DHT sensor!");
-            h = 0;
-            t = 0;
-            // return;
-        }
-
-        if (isnan(c)) {
-            Serial.println("Failed to read from MQ7 sensor!");
-            c = 0;
-        }
-
-        // Compute heat index in Celsius (isFahreheit = false)
-        float hic = dht.computeHeatIndex(t, h, false);
+        #ifdef MQ7_ON
+          #if MQ7_ON == true
+            c = mq7.getPPM();
+            if (isnan(c)) {
+                Serial.println("Failed to read from MQ7 sensor!");
+                c = 0;
+            }
+          #endif
+        #endif
+        #ifdef DHT22_ON
+          #if DHT22_ON == true
+            h = dht.readHumidity();       
+            t = dht.readTemperature();    // celsius
+            if (isnan(h) || isnan(t)) {
+                Serial.println("Failed to read from DHT sensor!");
+                h = 0;
+                t = 0;
+            }
+            // Compute heat index in Celsius (isFahreheit = false)
+            float hic = dht.computeHeatIndex(t, h, false);
+          #endif
+        #endif
 
         Serial.printf("CO: %f\n", c);
         Serial.printf("Humidity: %f\n", h);
@@ -374,6 +479,45 @@ void loop() {
       #endif
     #endif
 
+  }
+
+  if (millis() - lastNetworkRecord >= NETWORK_RECORD_TIME) {
+    
+    lastNetworkRecord = millis();
+
+    NetworkRecordNode* head = networkRecord;
+    int record_len = countNetworkRecord();
+    int data_arr_len = 2*record_len;
+    Data_l data_arr[data_arr_len];
+    byte data[data_arr_len*sizeof(Data)];
+
+    // DEBUG
+      Serial.printf("data_arr_len=%i\n", data_arr_len);
+    //
+    for (int i = 0; head != nullptr; i += 2) {
+        // DEBUG
+          Serial.println(i);
+          Serial.printf("packetId: %i\n", head->packetId);
+          Serial.printf("packetRtt: %i\n", head->packetRtt);
+        //
+        data_arr[i].data_l = head->packetId;
+        data_arr[i+1].data_l = head->packetRtt;
+        NetworkRecordNode* prev = head;
+        head = head->next;
+        delete prev;  // TODO: is this a good idea? (deleting network records before ensuring that they were sent)
+    }
+    networkRecord = nullptr;  // at this point, all network record nodes should have already been deleted
+
+    int data_len = appendDataToByteArray(data, 0, data_arr, data_arr_len, sizeof(Data_l));
+    // DEBUG
+      Serial.printf("NETR data_arr_len=%i\n", data_arr_len);
+      Serial.printf("NETR data_len=%i\n", data_len);
+    //
+    Packet* netrPkt = new Packet(NETR_TYP, LoRaSENSE.getId(), LoRaSENSE.getParentId(), LoRaSENSE.getId(), data, data_len);
+    // DEBUG
+      Serial.printf("Adding network record packet %i to queue...\n", netrPkt->getPacketId());
+    //
+    LoRaSENSE.pushPacketToQueue(netrPkt);
   }
 
   LoRaSENSE.loop();

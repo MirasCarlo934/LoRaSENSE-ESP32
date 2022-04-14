@@ -253,6 +253,7 @@ bool Packet::send() {
     if (LoRa.parsePacket()) {
         return false;
     }
+    // Send packet via LoRa
     LoRa.beginPacket();
     for (int i = 0; i < len; ++i) {
         LoRa.write(payload[i]);
@@ -285,6 +286,7 @@ char* Packet::getTypeInString() {
         case DATA_TYP: return "DATA";
         case DACK_TYP: return "DACK";
         case RSTA_TYP: return "RSTA";
+        case NETR_TYP: return "NETR";
     }
 }
 
@@ -351,19 +353,24 @@ int Packet::getDataLength() {
 
 
 
-LoRaSENSE::LoRaSENSE(unsigned int* node_ids, char** node_tokens, char** node_rsta_tokens, int nodes, unsigned int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, long timeout) {
+LoRaSENSE::LoRaSENSE(unsigned int* node_ids, char** node_tokens, char** node_rsta_tokens, char** node_netr_tokens, int nodes, unsigned int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, int min_hop, unsigned long wifi_timeout, unsigned long rreq_timeout, unsigned long cycle_time) {
     this->node_ids = node_ids;
     this->node_tokens = node_tokens;
     this->node_rsta_tokens = node_rsta_tokens;
+    this->node_netr_tokens = node_netr_tokens;
     this->nodes = nodes;
     this->id = id;
     this->ssid_arr = ssid_arr;
     this->pwd_arr = pwd_arr;
     this->wifi_arr_len = wifi_arr_len;
-    this->wifiTimeout = timeout;
+    this->min_hop = min_hop;
+    this->wifiTimeout = wifi_timeout;
+    this->rreqTimeout = rreq_timeout;
+    this->cycleTime = cycle_time;
     this->funcAfterInit = &empty;
     this->funcOnConnecting = &empty;
     this->funcOnConnect = &empty;
+    this->funcOnSendSuccess = &empty;
     this->funcOnSend = &empty;
 }
 
@@ -468,9 +475,9 @@ void LoRaSENSE::processDack(Packet* packet, int rssi) {
     Serial.println("DACK successfully received");
     waitingForAck = false;
     resent = false;
+    funcOnSendSuccess();
     Packet* sentPacket = packetQueue.popFront();
     delete sentPacket;
-    funcOnSend();
 }
 
 void LoRaSENSE::sendPacketViaLora(Packet* packet, bool waitForAck) {
@@ -478,8 +485,9 @@ void LoRaSENSE::sendPacketViaLora(Packet* packet, bool waitForAck) {
     if (sendSuccess) {
         waitingForAck = waitForAck;
         lastSendAttempt = millis();
+        funcOnSend();
     } else {
-        long rand_t = (rand() % RESEND_MAX_TIME);
+        long rand_t = (rand() % cycleTime);
         nextSendAttempt = millis() + rand_t;
         Serial.printf("Possible collision detected, rescheduling after %ums...\n", rand_t);
     }
@@ -493,7 +501,7 @@ void LoRaSENSE::sendPacketViaLora(Packet* packet, bool waitForAck) {
 }
 
 void LoRaSENSE::sendPacketToServer(Packet* packet) {
-    StaticJsonDocument<256> jsonDoc;
+    StaticJsonDocument<512> jsonDoc;
     int data_len = packet->getDataLength();
     byte data[data_len];
     packet->getData(data);
@@ -580,6 +588,44 @@ void LoRaSENSE::sendPacketToServer(Packet* packet) {
                 accessToken = node_rsta_tokens[i];
             }
         }
+    } else if (packet->getType() == NETR_TYP) {
+        int record_len = (data_len / (2*sizeof(Data_l)));   // number of packet ID-RTT pairs in the packet
+        // DEBUG
+            Serial.printf("TEST1: record_len=%i\n", record_len);
+        //
+        // Data_l packetIds[record_len / 2];
+        // Data_l packetRtts[record_len / 2];
+        // DEBUG
+            Serial.printf("TEST2: data_len=%i\n", data_len);
+        //
+        for (int i = 0; i < record_len; ++i) {
+            Data_l packetId;
+            Data_l packetRtt;
+            int j = i * 2*sizeof(Data_l);
+            packetId.data_b[0] = data[j];
+            packetId.data_b[1] = data[j + 1];
+            packetId.data_b[2] = data[j + 2];
+            packetId.data_b[3] = data[j + 3];
+            packetRtt.data_b[0] = data[j + 4];
+            packetRtt.data_b[1] = data[j + 5];
+            packetRtt.data_b[2] = data[j + 6];
+            packetRtt.data_b[3] = data[j + 7];
+            // DEBUG
+                Serial.printf("i: %i; j: %i\n", i, j);
+                Serial.printf("%i, %i\n", packetId.data_l, packetRtt.data_l);
+            //
+            jsonDoc["packetIds"][i] = packetId.data_l;
+            jsonDoc["packetRtts"][i] = packetRtt.data_l;
+        }
+        jsonDoc["nodeId"] = packet->getSourceId();
+        // DEBUG
+            Serial.println("TEST3");
+        //
+        for (int i = 0; i < this->nodes; ++i) {
+            if (packet->getSourceId() == node_ids[i]) {
+                accessToken = node_netr_tokens[i];
+            }
+        }
     }
 
     String jsonStr = "";
@@ -592,19 +638,19 @@ void LoRaSENSE::sendPacketToServer(Packet* packet) {
     endpoint.replace("$ACCESS_TOKEN", accessToken);
     httpClient->begin(endpoint);
     beginSendToServer = millis();
+    funcOnSend();
     int httpResponseCode = httpClient->POST(jsonStr);
     if (httpResponseCode == 200) {
-        Serial.printf("sent");
+        Serial.printf("sent [time: %lu]\n", millis() - beginSendToServer);
+        funcOnSendSuccess();
         packetQueue.popFront();
         delete packet;
-        funcOnSend();
     } else if (httpResponseCode >= 400) {
         Serial.printf("error(%i)", httpResponseCode);
         Serial.println(httpClient->getString());
     } else {
         Serial.printf("fatal error(%i)", httpResponseCode);
     }
-    Serial.printf(" [time: %lu]\n", millis() - beginSendToServer);
 }
 
 void LoRaSENSE::setup() {
@@ -653,6 +699,7 @@ void LoRaSENSE::loop() {
             // Connected to Wi-Fi; Node is root
             connectTime = millis() - startConnectTime;
             Serial.println("Connected to Wi-Fi");
+            wifi_i = 0;
             hopCount = 0;
             connected = true;
             connectingToWifi = false;
@@ -679,7 +726,7 @@ void LoRaSENSE::loop() {
         }
     }
     else if (connectingToLora) {
-        if ((millis() - lastRreqSent) > RREQ_TIMEOUT) {
+        if ((millis() - lastRreqSent) > this->rreqTimeout) {
             // Resend RREQ
             Serial.println("No RREP received.");
             Serial.print("Re-");
@@ -687,7 +734,7 @@ void LoRaSENSE::loop() {
         }
     } 
     
-    if (!connected && ((millis() - lastWifiAttempt) > WIFI_RECONN)
+    if (!connected && ((millis() - lastWifiAttempt) > this->wifiTimeout)
         #ifdef MIN_HOP
         && MIN_HOP == 0
         #endif
@@ -735,7 +782,7 @@ void LoRaSENSE::loop() {
 
     // Check if node is currently waiting for a DACK/NACK
     if (waitingForAck) { 
-        if (millis() > lastSendAttempt + ACK_TIMEOUT) {
+        if (millis() > lastSendAttempt + (cycleTime / 2)) {
             // ACK timeout
             if (!resent) {
                 // Resend data packet
@@ -818,23 +865,23 @@ bool LoRaSENSE::sendPacketInQueue() {
         if (millis() >= nextSendAttempt && 
                 (
                     connectingToLora && packet->getType() == RREQ_TYP || 
-                    (connected && (hopCount > 0 || (packet->getType() != DATA_TYP && packet->getType() != RSTA_TYP)))
+                    (connected && (hopCount > 0 || (packet->getType() != DATA_TYP && packet->getType() != RSTA_TYP && packet->getType() != NETR_TYP)))
                 )
             ) {
             // Send packet via LoRa
             bool waitForAck = false;
             if (packet->getType() != RREQ_TYP && packet->getType() != RERR_TYP) {
-                Serial.printf("Sending %s packet %i to node %s...", packet->getTypeInString(), packet->getPacketId(), String(packet->getReceiverId(), HEX).c_str());
+                Serial.printf("[LORA] Sending %s packet %i to node %s...", packet->getTypeInString(), packet->getPacketId(), String(packet->getReceiverId(), HEX).c_str());
             } else {
-                Serial.printf("Broadcasting %s packet %i...", packet->getTypeInString(), packet->getPacketId());
+                Serial.printf("[LORA] Broadcasting %s packet %i...", packet->getTypeInString(), packet->getPacketId());
             }
             if (packet->getType() == DATA_TYP || packet->getType() == RSTA_TYP) {
                 waitForAck = true;
             }
             sendPacketViaLora(packet, waitForAck);
-        } else if (hopCount == 0 && (packet->getType() == DATA_TYP || packet->getType() == RSTA_TYP)) {
+        } else if (hopCount == 0 && (packet->getType() == DATA_TYP || packet->getType() == RSTA_TYP || packet->getType() == NETR_TYP)) {
             // Send packet via Wi-Fi/HTTP
-            Serial.printf("Sending %s packet %i to server...", packet->getTypeInString(), packet->getPacketId());
+            Serial.printf("[WIFI] Sending %s packet %i to server...", packet->getTypeInString(), packet->getPacketId());
             sendPacketToServer(packet);
         } else {
             return false;
@@ -856,6 +903,14 @@ void LoRaSENSE::pushPacketToQueueFront(Packet* packet) {
     Serial.printf("DONE. %u packet/s currently in queue\n", this->packetQueue.getSize());
 }
 
+Packet* LoRaSENSE::peekPacketQueue() {
+    return this->packetQueue.peekFront();
+}
+
+bool LoRaSENSE::packetQueueIsEmpty() {
+    return packetQueue.isEmpty();
+}
+
 void LoRaSENSE::setAfterInit(void funcAfterInit()) {
     this->funcAfterInit = std::bind(funcAfterInit);
 }
@@ -866,6 +921,10 @@ void LoRaSENSE::setOnConnecting(void funcOnConnecting()) {
 
 void LoRaSENSE::setOnConnect(void funcOnConnect()) {
     this->funcOnConnect = std::bind(funcOnConnect);
+}
+
+void LoRaSENSE::setOnSendSuccess(void funcOnSendSuccess()) {
+    this->funcOnSendSuccess = std::bind(funcOnSendSuccess);
 }
 
 void LoRaSENSE::setOnSend(void funcOnSend()) {

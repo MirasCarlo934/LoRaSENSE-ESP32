@@ -1,9 +1,6 @@
 #ifndef LORASENSE_H
 #define LORASENSE_H
 
-//Debugging
-#define MIN_HOP 0
-
 #include <Arduino.h>
 #include <ArduinoJson.h>
 
@@ -26,14 +23,15 @@
 #define RERR_TYP 0b010
 #define DATA_TYP 0b011
 #define DACK_TYP 0b100
+#define NETR_TYP 0b110
 #define RSTA_TYP 0b111
 
-#define WIFI_TIMEOUT 30000  // 30s
-#define RREQ_TIMEOUT 5000   // 5s
-#define WIFI_RECONN 60000   // 60s
+// #define WIFI_TIMEOUT 30000  // 30s
+// #define RREQ_TIMEOUT 5000   // 5s
+// #define WIFI_RECONN 60000   // 60s
 // #define ACK_TIMEOUT 1000    // 1s
-#define ACK_TIMEOUT 5000    // 5s
-#define RESEND_MAX_TIME 369
+// #define ACK_TIMEOUT 5000    // 5s
+// #define RESEND_MAX_TIME 369
 
 #define RSSI_THRESH -90
 
@@ -126,37 +124,44 @@ class LoRaSENSE {
         unsigned int* node_ids;
         char** node_tokens;
         char** node_rsta_tokens;
+        char** node_netr_tokens;
         int nodes;
 
-        // Network connection variables
+        // User-defined variables
         unsigned int id = 0;
-        int parent_id = 0;
-        char** ssid_arr;
-        char** pwd_arr;
+        char** ssid_arr = {};                       // Wi-Fi SSIDs to connect to
+        char** pwd_arr = {};                        // Wi-Fi passwords to Wi-Fi SSIDs
         int wifi_arr_len = 0;
-        int wifi_i = 0;                     // iterator for ssid_arr and pwd_arr
+        int min_hop = 0;
+        unsigned long wifiTimeout = 30000;          // 30s by default
+        unsigned long rreqTimeout = 5000;           // 5s by default
+        unsigned long cycleTime = 60000;            // 1m by default
+
+        // Network connection variables
+        int parent_id = 0;
+        int wifi_i = 0;                             // iterator for ssid_arr and pwd_arr
         int hopCount = INT_MAX;
         bool connectingToWifi = false;
         bool connectingToLora = false;
         bool connected = false;
         bool waitingForAck = false;
         bool resent = false;
-        HTTPClient* httpClient;              // http client for root nodes
         unsigned long startConnectTime = 0;
         unsigned long connectTime = 0;
-        unsigned long wifiTimeout = 0;
         unsigned long lastRreqSent = 0;
         unsigned long lastWifiAttempt = 0;
-        unsigned long nextSendAttempt = 0;      // time in millis where next send attempt can be made
-        unsigned long lastSendAttempt = 0;      // time to wait for a DACK/NACK
-        unsigned long beginSendToServer = 0;    // time when device began sending to server (for logging purposes)
+        unsigned long nextSendAttempt = 0;          // time in millis where next send attempt can be made
+        unsigned long lastSendAttempt = 0;          // time to wait for a DACK/NACK
+        unsigned long beginSendToServer = 0;        // time when device began sending to server (for logging purposes)
         PacketQueue packetQueue;
+        HTTPClient* httpClient;                     // http client for root nodes
 
         // Callback variables
-        std::function<void()> funcAfterInit;    // callback after LoRaSENSE successfully initializes
-        std::function<void()> funcOnConnecting; // callback when node is currently connecting to network
-        std::function<void()> funcOnConnect;    // callback when node successfully connects to network
-        std::function<void()> funcOnSend;       // callback when a packet has been successfully sent
+        std::function<void()> funcAfterInit;        // callback after LoRaSENSE successfully initializes
+        std::function<void()> funcOnConnecting;     // callback when node is currently connecting to network
+        std::function<void()> funcOnConnect;        // callback when node successfully connects to network
+        std::function<void()> funcOnSendSuccess;    // callback when a packet has been successfully sent
+        std::function<void()> funcOnSend;           // callback when a packet has been sent but NOT yet ack'ed
 
         // Packet processing functions
         void processRreq(Packet* packet);
@@ -169,7 +174,7 @@ class LoRaSENSE {
         void sendPacketToServer(Packet* packet);
 
     public:
-        LoRaSENSE(unsigned int* node_ids, char** node_tokens, char** node_rsta_tokens, int nodes, unsigned int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, long timeout);
+        LoRaSENSE(unsigned int* node_ids, char** node_tokens, char** node_rsta_tokens, char** node_netr_tokens, int nodes, unsigned int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, int min_hop, unsigned long wifi_timeout, unsigned long rreq_timeout, unsigned long cycle_time);
         ~LoRaSENSE();
 
         void setup();
@@ -180,10 +185,13 @@ class LoRaSENSE {
         bool sendPacketInQueue();   // true if packet was sent, false if not
         void pushPacketToQueue(Packet* packet);
         void pushPacketToQueueFront(Packet* packet);
+        Packet* peekPacketQueue();
+        bool packetQueueIsEmpty();
 
         void setAfterInit(void funcAfterInit());
         void setOnConnecting(void funcOnConnecting());
         void setOnConnect(void funcOnConnect());
+        void setOnSendSuccess(void funcOnSendSuccess());
         void setOnSend(void funcOnSend());
         unsigned int getId();
         int getParentId();
