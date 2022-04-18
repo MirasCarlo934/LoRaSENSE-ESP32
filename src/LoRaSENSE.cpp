@@ -397,7 +397,7 @@ void LoRaSENSE::processRreq(Packet* packet) {
     data[3] = hopCount & 0xFF;
     Packet* rrep = new Packet(RREP_TYP, this->id, packet->getSenderId(), this->id, data, 4);
     // TODO: UNCOMMENT THIS!!!
-    this->pushPacketToQueue(rrep);
+    // this->pushPacketToQueue(rrep);
 }
 
 void LoRaSENSE::processRrep(Packet* packet, int rssi) {
@@ -864,19 +864,6 @@ void LoRaSENSE::reconnect() {
 }
 
 void LoRaSENSE::onReceive(int packetSize) {
-    // if (packetSize) {
-    //     Serial.printf("Packet received.");
-    //     byte* packetBuf = new byte[packetSize];
-    //     for (int i = 0; LoRa.available(); ++i) {
-    //         int c = LoRa.read();
-    //         if (i%4 == 0) {
-    //             Serial.println();
-    //         }
-    //         Serial.printf("%i ", c);
-    //         packetBuf[i] = c;
-    //     }
-    //     Serial.println();
-    // }
     if (!connectingToWifi) {
         if (packetSize) {
             int rssi = LoRa.packetRssi();
