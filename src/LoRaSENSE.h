@@ -170,6 +170,7 @@ class LoRaSENSE {
         void processRsta(Packet* packet);
         void processData(Packet* packet);
         void processDack(Packet* packet, int rssi);
+        void processNetr(Packet* packet);
         void sendPacketViaLora(Packet* packet, bool waitForAck);
         void sendPacketToServer(Packet* packet);
 
@@ -179,15 +180,23 @@ class LoRaSENSE {
 
         void setup();
         void loop();
+
+        // Network connection methods
         void connectToWifi(char* ssid, char* pwd);
         void connectToLora();
         void reconnect();        
+
+        // LoRa radio callback methods
+        void onReceive(int packetSize);
+
+        // Packet queue methods
         bool sendPacketInQueue();   // true if packet was sent, false if not
         void pushPacketToQueue(Packet* packet);
         void pushPacketToQueueFront(Packet* packet);
         Packet* peekPacketQueue();
         bool packetQueueIsEmpty();
 
+        // Encapsulation methods
         void setAfterInit(void funcAfterInit());
         void setOnConnecting(void funcOnConnecting());
         void setOnConnect(void funcOnConnect());

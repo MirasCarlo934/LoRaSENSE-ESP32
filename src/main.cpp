@@ -22,11 +22,11 @@
 #define PMS7003_ON true
 
 #define MIN_HOP 0
-#define CYCLE_TIME 5000            // 5s, for testing only
+#define CYCLE_TIME 10000            // 5s, for testing only
 // #define CYCLE_TIME 150000           // 150s, in accordance with the 60s-90s cycle time of MQ-7
 #define WIFI_TIMEOUT 30000          // 30s
 #define RREQ_TIMEOUT 5000           // 5s
-#define NETWORK_RECORD_TIME CYCLE_TIME*10 // 10*150s cycle time
+#define NETWORK_RECORD_TIME CYCLE_TIME*10 // 10 * cycle time
 
 #include <Arduino.h>
 #include "LoRaSENSE.h"
@@ -197,7 +197,7 @@ void displayInfo() {
   display.setCursor(0,0);
   String idStr = String(LoRaSENSE.getId(), HEX);
   idStr.toUpperCase();
-  String line1 = idStr + " (" + LoRaSENSE.getHopCount() + ")   (" + cycles + ")";
+  String line1 = idStr + " (" + LoRaSENSE.getHopCount() + ")(" + cycles + ")";
   display.print(line1);
   display.setCursor(0,10);
   display.printf("T:%.2f | H:%.2f", last_temp, last_humid);
@@ -229,7 +229,7 @@ void afterInit() {
 
   Serial.println("Initialization OK!");
 
-  // This can be removed; only here to be able to display after init message
+  // This can be removed; only here to be able to display after-init message
   delay(1000);
 }
 
@@ -273,8 +273,21 @@ void onSend() {
 }
 
 void onSendSuccess() {
+  // DEBUG
+    // Serial.println("TEST2");
+  //
+
   // add network record
-  addNetworkRecord(currentPacketId, millis() - currentPacketRtt);
+  if (!LoRaSENSE.packetQueueIsEmpty()) {
+    byte packetType = LoRaSENSE.peekPacketQueue()->getType();
+    if (packetType == DATA_TYP || packetType == NETR_TYP || packetType == RSTA_TYP) {
+      addNetworkRecord(currentPacketId, millis() - currentPacketRtt);
+    }
+  }
+
+  // DEBUG
+    // Serial.println("TEST2");
+  //
 
   // display on screen
   displayInfo();
