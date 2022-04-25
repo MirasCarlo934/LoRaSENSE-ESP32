@@ -21,7 +21,7 @@
 #define MQ7_ON false
 #define PMS7003_ON true
 
-#define MIN_HOP 0
+#define MIN_HOP 1
 #define CYCLE_TIME 10000            // 5s, for testing only
 // #define CYCLE_TIME 150000           // 150s, in accordance with the 60s-90s cycle time of MQ-7
 #define WIFI_TIMEOUT 30000          // 30s

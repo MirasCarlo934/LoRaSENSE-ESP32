@@ -131,6 +131,7 @@ Packet* PacketQueue::popFront() {
         delete headNode;
         return packet;
     } else {
+        Serial.println("PacketQueue already empty!");
         throw 0;
     }
 }
@@ -914,7 +915,7 @@ bool LoRaSENSE::sendPacketInQueue() {
             } else {
                 Serial.printf("[LORA] Broadcasting %s packet %i...", packet->getTypeInString(), packet->getPacketId());
             }
-            if (packet->getType() == DATA_TYP || packet->getType() == RSTA_TYP) {
+            if (packet->getType() == DATA_TYP || packet->getType() == RSTA_TYP || packet->getType() == NETR_TYP) {
                 waitForAck = true;
             }
             sendPacketViaLora(packet, waitForAck);
