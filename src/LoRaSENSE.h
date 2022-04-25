@@ -63,6 +63,7 @@ class Packet {
         byte* payload;
         long len;
         int data_len;
+        int rssi = 0;   // holds the RSSI of the packet when received
         void defaultInit(byte type, int packet_id, int sender_id, int receiver_id, int source_id, byte* data, int data_len);
    
     public:
@@ -89,6 +90,8 @@ class Packet {
         void getData(byte* data);
         int getLength();
         int getDataLength();
+        void setRssi(int rssi);
+        int getRssi();
 
 };
 
@@ -154,6 +157,7 @@ class LoRaSENSE {
         unsigned long lastSendAttempt = 0;          // time to wait for a DACK/NACK
         unsigned long beginSendToServer = 0;        // time when device began sending to server (for logging purposes)
         PacketQueue packetQueue;
+        PacketQueue receivedPackets;
         HTTPClient* httpClient;                     // http client for root nodes
 
         // Callback variables
@@ -165,11 +169,11 @@ class LoRaSENSE {
 
         // Packet processing functions
         void processRreq(Packet* packet);
-        void processRrep(Packet* packet, int rssi);
+        void processRrep(Packet* packet);
         void processRerr(Packet* packet);
         void processRsta(Packet* packet);
         void processData(Packet* packet);
-        void processDack(Packet* packet, int rssi);
+        void processDack(Packet* packet);
         void processNetr(Packet* packet);
         void sendPacketViaLora(Packet* packet, bool waitForAck);
         void sendPacketToServer(Packet* packet);
@@ -187,7 +191,7 @@ class LoRaSENSE {
         void reconnect();        
 
         // LoRa radio callback methods
-        void onReceive(int packetSize);
+        void onLoraReceive(int packetSize);
 
         // Packet queue methods
         bool sendPacketInQueue();   // true if packet was sent, false if not

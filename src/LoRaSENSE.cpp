@@ -35,7 +35,7 @@ void empty() {
 // this function is needed due to limitations on the function pointer 
 // accepted by the LoRa.setOnReceive() function
 void loraOnReceive(int packetSize) {
-    loraSense->onReceive(packetSize);
+    loraSense->onLoraReceive(packetSize);
 }
 
 /**
@@ -356,6 +356,14 @@ int Packet::getDataLength() {
     return this->data_len;
 }
 
+void Packet::setRssi(int rssi) {
+    this->rssi = rssi;
+}
+
+int Packet::getRssi() {
+    return this->rssi;
+}
+
 
 
 
@@ -390,25 +398,28 @@ LoRaSENSE::~LoRaSENSE() {
 }
 
 void LoRaSENSE::processRreq(Packet* packet) {
-    byte data[4]; // hop count
+    byte* data = new byte[4]; // hop count
+    // byte data[4]; 
     data[0] = (hopCount >> 24) & 0xFF;
     data[1] = (hopCount >> 16) & 0xFF;
     data[2] = (hopCount >> 8) & 0xFF;
     data[3] = hopCount & 0xFF;
     Packet* rrep = new Packet(RREP_TYP, this->id, packet->getSenderId(), this->id, data, 4);
-    // TODO: UNCOMMENT THIS!!!
-    // this->pushPacketToQueue(rrep);
+    this->pushPacketToQueue(rrep);
+
+    delete data;
 }
 
-void LoRaSENSE::processRrep(Packet* packet, int rssi) {
+void LoRaSENSE::processRrep(Packet* packet) {
     int sourceId = packet->getSourceId();
     int data_len = packet->getDataLength();
-    byte data[data_len];
+    byte* data = new byte[data_len];
+
     packet->getData(data);
     int hopCount = 0;
     hopCount = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
-    Serial.printf("RREP from %s (hop count: %i, RSSI: %i)\n", String(sourceId, HEX), hopCount, rssi);
-    if (hopCount < (this->hopCount - 1) && rssi >= RSSI_THRESH) {
+    Serial.printf("RREP from %s (hop count: %i, RSSI: %i)\n", String(sourceId, HEX), hopCount, packet->getRssi());
+    if (hopCount < (this->hopCount - 1) && packet->getRssi() >= RSSI_THRESH) {
         if (hopCount >= min_hop-1) {
             // Connected to network via LoRa
             connectTime = millis() - this->startConnectTime;
@@ -420,14 +431,18 @@ void LoRaSENSE::processRrep(Packet* packet, int rssi) {
             Serial.printf("Hop count: %i\n", this->hopCount);
             Data_l connTime = {connectTime};
             Data_l routeLedger = {this->id};
-            Data_l data[] = {connTime, routeLedger};
-            byte data_b[2*sizeof(Data_l)];
+            Data_l* data = new Data_l[2];
+            data[0] = connTime;
+            data[1] = routeLedger;
+            byte* data_b = new byte[2*sizeof(Data_l)];
             int data_len = appendDataToByteArray(data_b, 0, data, 2, sizeof(Data_l));
             Packet* rsta = new Packet(RSTA_TYP, this->id, this->parent_id, this->id, data_b, data_len);
             this->pushPacketToQueue(rsta);
+            delete data;
             funcOnConnect();
         }
     }
+    delete data;
 }
 
 void LoRaSENSE::processData(Packet* packet) {
@@ -452,10 +467,10 @@ void LoRaSENSE::processRsta(Packet* packet) {
 
     // Add received packet to queue, with updated sender and receiver IDs and route ledger
     int data_len = packet->getDataLength();
-    byte data[data_len];
+    byte* data = new byte[data_len];
     packet->getData(data);
     int new_data_len = data_len + sizeof(this->id);
-    byte new_data[new_data_len];
+    byte* new_data = new byte[new_data_len];
     Data_l id_data = {this->id};
     for (int i = 0; i < data_len; ++i) {
         new_data[i] = data[i];
@@ -465,10 +480,13 @@ void LoRaSENSE::processRsta(Packet* packet) {
     }
     Packet* newPacket = new Packet(packet, this->id, this->parent_id, new_data, new_data_len);
     this->pushPacketToQueue(newPacket);
+
+    delete data;
+    delete new_data;
 }
 
-void LoRaSENSE::processDack(Packet* packet, int rssi) {
-    if (rssi < RSSI_THRESH) {
+void LoRaSENSE::processDack(Packet* packet) {
+    if (packet->getRssi() < RSSI_THRESH) {
         Serial.println("RSSI below threshold");
         reconnect();
     }
@@ -491,6 +509,7 @@ void LoRaSENSE::processNetr(Packet* packet) {
 }
 
 void LoRaSENSE::sendPacketViaLora(Packet* packet, bool waitForAck) {
+    // Serial.printf("Sending %s packet with ID: %i\n", packet->getTypeInString(), packet->getPacketId());
     bool sendSuccess = packet->send();
     if (sendSuccess) {
         waitingForAck = waitForAck;
@@ -602,12 +621,12 @@ void LoRaSENSE::sendPacketToServer(Packet* packet) {
     } else if (packet->getType() == NETR_TYP) {
         int record_len = (data_len / (2*sizeof(Data_l)));   // number of packet ID-RTT pairs in the packet
         // DEBUG
-            Serial.printf("TEST1: record_len=%i\n", record_len);
+            // Serial.printf("TEST1: record_len=%i\n", record_len);
         //
         // Data_l packetIds[record_len / 2];
         // Data_l packetRtts[record_len / 2];
         // DEBUG
-            Serial.printf("TEST2: data_len=%i\n", data_len);
+            // Serial.printf("TEST2: data_len=%i\n", data_len);
         //
         for (int i = 0; i < record_len; ++i) {
             Data_l packetId;
@@ -622,8 +641,8 @@ void LoRaSENSE::sendPacketToServer(Packet* packet) {
             packetRtt.data_b[2] = data[j + 6];
             packetRtt.data_b[3] = data[j + 7];
             // DEBUG
-                Serial.printf("i: %i; j: %i\n", i, j);
-                Serial.printf("%i, %i\n", packetId.data_l, packetRtt.data_l);
+                // Serial.printf("i: %i; j: %i\n", i, j);
+                // Serial.printf("%i, %i\n", packetId.data_l, packetRtt.data_l);
             //
             jsonDoc["packetIds"][i] = packetId.data_l;
             jsonDoc["packetRtts"][i] = packetRtt.data_l;
@@ -749,41 +768,34 @@ void LoRaSENSE::loop() {
         ++wifi_i;
     }
 
-    // Continuous listen for packets
-    // if (!connectingToWifi) {
-    //     int packetSize = LoRa.parsePacket();
-    //     if (packetSize) {
-    //         int rssi = LoRa.packetRssi();
-    //         byte packetBuf[packetSize];
-    //         for (int i = 0; LoRa.available(); ++i) {
-    //             packetBuf[i] = LoRa.read();
-    //         }
-    //         Packet* packet = new Packet(packetBuf, packetSize);
-    //         if (packet->checkCRC()) {
-    //             // if (packet->getReceiverId() == this->id) {
-    //                 Serial.printf("%s packet %u received from %s (source: %s, RSSI: %i)...\n", 
-    //                     packet->getTypeInString(), packet->getPacketId(), String(packet->getSenderId(), HEX), String(packet->getSourceId(), HEX), rssi);
-    //             // }
-    //             if (packet->getType() == RREQ_TYP && connected) {
-    //                 processRreq(packet);
-    //             } else if (packet->getType() == RERR_TYP && packet->getSenderId() == this->getParentId() && connected) {
-    //                 processRerr(packet);
-    //             } else if (packet->getType() == RREP_TYP && packet->getReceiverId() == this->getId()) {
-    //                 processRrep(packet, rssi);
-    //             } else if (packet->getType() == RSTA_TYP && packet->getReceiverId() == this->getId()) {
-    //                 processRsta(packet);
-    //             } else if (packet->getType() == DATA_TYP && packet->getReceiverId() == this->getId()) {
-    //                 processData(packet);
-    //             } else if (packet->getType() == DACK_TYP && packet->getReceiverId() == this->getId()) {
-    //                 processDack(packet, rssi);
-    //             }
-    //         } else {
-    //             Serial.println("Received erroneous packet");
-    //         }
-    //         // Packet MUST be deleted to free memory resources!!
-    //         delete packet;
-    //     }
-    // }
+    // Process packets in received packets queue
+    if (!receivedPackets.isEmpty()) {
+        Packet* packet = receivedPackets.peekFront();
+        if (packet->checkCRC()) {
+            Serial.printf("Processing %s packet %u...\n", 
+                packet->getTypeInString(), packet->getPacketId());
+            if (packet->getType() == RREQ_TYP && connected) {
+                processRreq(packet);
+            } else if (packet->getType() == RERR_TYP && packet->getSenderId() == this->getParentId() && connected) {
+                processRerr(packet);
+            } else if (packet->getType() == RREP_TYP && packet->getReceiverId() == this->getId()) {
+                processRrep(packet);
+            } else if (packet->getType() == RSTA_TYP && packet->getReceiverId() == this->getId()) {
+                processRsta(packet);
+            } else if (packet->getType() == DATA_TYP && packet->getReceiverId() == this->getId()) {
+                processData(packet);
+            } else if (packet->getType() == DACK_TYP && packet->getReceiverId() == this->getId()) {
+                processDack(packet);
+            } else if (packet->getType() == NETR_TYP && packet->getReceiverId() == this->getId()) {
+                processNetr(packet);
+            }
+        } else {
+            Serial.println("Received erroneous packet");
+        }
+        // Packet MUST be deleted to free memory resources!!
+        receivedPackets.popFront();
+        delete packet;
+    }
 
     // Check if node is currently waiting for a DACK/NACK
     if (waitingForAck) { 
@@ -807,6 +819,9 @@ void LoRaSENSE::loop() {
         //
         sendPacketInQueue();
     }
+
+    // Keep LoRa in continuous receive mode
+    LoRa.receive();
 }
 
 // TODO: this can be simplified
@@ -836,7 +851,7 @@ void LoRaSENSE::reconnect() {
 
     // Reconnection process
     
-    // Not all of these are needed to be reset, but I did just to be on the safe side
+    // Not all of these are needed to be reset, but I did just to be safe
     hopCount = INT_MAX;
     connectingToWifi = false;
     connectingToLora = false;
@@ -850,7 +865,6 @@ void LoRaSENSE::reconnect() {
     lastWifiAttempt = 0;
     nextSendAttempt = 0;
     lastSendAttempt = 0;
-    //
 
     funcOnConnecting();
     if (min_hop == 0) {
@@ -863,7 +877,7 @@ void LoRaSENSE::reconnect() {
     }
 }
 
-void LoRaSENSE::onReceive(int packetSize) {
+void LoRaSENSE::onLoraReceive(int packetSize) {
     if (!connectingToWifi) {
         if (packetSize) {
             int rssi = LoRa.packetRssi();
@@ -872,29 +886,10 @@ void LoRaSENSE::onReceive(int packetSize) {
                 packetBuf[i] = LoRa.read();
             }
             Packet* packet = new Packet(packetBuf, packetSize);
-            if (packet->checkCRC()) {
-                // if (packet->getReceiverId() == this->id) {
-                    Serial.printf("%s packet %u received from %s (source: %s, RSSI: %i)...\n", 
-                        packet->getTypeInString(), packet->getPacketId(), String(packet->getSenderId(), HEX), String(packet->getSourceId(), HEX), rssi);
-                // }
-                if (packet->getType() == RREQ_TYP && connected) {
-                    processRreq(packet);
-                } else if (packet->getType() == RERR_TYP && packet->getSenderId() == this->getParentId() && connected) {
-                    processRerr(packet);
-                } else if (packet->getType() == RREP_TYP && packet->getReceiverId() == this->getId()) {
-                    processRrep(packet, rssi);
-                } else if (packet->getType() == RSTA_TYP && packet->getReceiverId() == this->getId()) {
-                    processRsta(packet);
-                } else if (packet->getType() == DATA_TYP && packet->getReceiverId() == this->getId()) {
-                    processData(packet);
-                } else if (packet->getType() == DACK_TYP && packet->getReceiverId() == this->getId()) {
-                    processDack(packet, rssi);
-                }
-            } else {
-                Serial.println("Received erroneous packet");
-            }
-            // Packet MUST be deleted to free memory resources!!
-            delete packet;
+            packet->setRssi(rssi);
+            Serial.printf("%s packet %u received from %s (source: %s, RSSI: %i)...\n", 
+                packet->getTypeInString(), packet->getPacketId(), String(packet->getSenderId(), HEX), String(packet->getSourceId(), HEX), rssi);
+            receivedPackets.push(packet);
             delete packetBuf;
         }
     }

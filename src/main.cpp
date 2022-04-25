@@ -6,8 +6,8 @@
 */
 
 // Constants
-// #define NODE_ID 0xAAAAAAAA
-#define NODE_ID 0xBBBBBBBB
+#define NODE_ID 0xAAAAAAAA
+// #define NODE_ID 0xBBBBBBBB
 // #define NODE_ID 0xCCCCCCCC
 // #define NODE_ID 0xDDDDDDDD
 // #define NODE_ID 0xEEEEEEEE
@@ -273,10 +273,6 @@ void onSend() {
 }
 
 void onSendSuccess() {
-  // DEBUG
-    // Serial.println("TEST2");
-  //
-
   // add network record
   if (!LoRaSENSE.packetQueueIsEmpty()) {
     byte packetType = LoRaSENSE.peekPacketQueue()->getType();
@@ -284,10 +280,6 @@ void onSendSuccess() {
       addNetworkRecord(currentPacketId, millis() - currentPacketRtt);
     }
   }
-
-  // DEBUG
-    // Serial.println("TEST2");
-  //
 
   // display on screen
   displayInfo();
@@ -504,15 +496,7 @@ void loop() {
     Data_l data_arr[data_arr_len];
     byte data[data_arr_len*sizeof(Data)];
 
-    // DEBUG
-      Serial.printf("data_arr_len=%i\n", data_arr_len);
-    //
     for (int i = 0; head != nullptr; i += 2) {
-        // DEBUG
-          Serial.println(i);
-          Serial.printf("packetId: %i\n", head->packetId);
-          Serial.printf("packetRtt: %i\n", head->packetRtt);
-        //
         data_arr[i].data_l = head->packetId;
         data_arr[i+1].data_l = head->packetRtt;
         NetworkRecordNode* prev = head;
@@ -522,13 +506,9 @@ void loop() {
     networkRecord = nullptr;  // at this point, all network record nodes should have already been deleted
 
     int data_len = appendDataToByteArray(data, 0, data_arr, data_arr_len, sizeof(Data_l));
-    // DEBUG
-      Serial.printf("NETR data_arr_len=%i\n", data_arr_len);
-      Serial.printf("NETR data_len=%i\n", data_len);
-    //
     Packet* netrPkt = new Packet(NETR_TYP, LoRaSENSE.getId(), LoRaSENSE.getParentId(), LoRaSENSE.getId(), data, data_len);
     // DEBUG
-      Serial.printf("Adding network record packet %i to queue...\n", netrPkt->getPacketId());
+      // Serial.printf("Adding network record packet %i to queue...\n", netrPkt->getPacketId());
     //
     LoRaSENSE.pushPacketToQueue(netrPkt);
   }
