@@ -12,8 +12,9 @@
 #define NODE_ID 0xDDDDDDDD
 // #define NODE_ID 0xEEEEEEEE
 #define MOBILE_NODE false
+#define MIN_HOP 0
+#define WIFI_ONLY true
 
-// Debugging
 // #define DATA_TESTING true        // set true to send randomized data to the network
 #define DATA_SEND true              // set true to send sensor data to the network
 #define SENSORS_ON true             // set true to read data from sensors
@@ -21,12 +22,13 @@
 #define MQ7_ON false
 #define PMS7003_ON true
 
-#define MIN_HOP 0
-#define CYCLE_TIME 10000            // 5s, for testing only
-// #define CYCLE_TIME 150000           // 150s, in accordance with the 60s-90s cycle time of MQ-7
-#define WIFI_TIMEOUT 30000          // 30s
-#define RREQ_TIMEOUT 5000           // 5s
-#define NETWORK_RECORD_TIME CYCLE_TIME*10 // 10 * cycle time
+#define CYCLE_TIME 10000                    // 10s, for testing only
+// #define CYCLE_TIME 150000                // 150s, in accordance with the 60s-90s cycle time of MQ-7
+#define WIFI_TIMEOUT 30000                  // 30s
+#define RREQ_TIMEOUT 5000                   // 5s
+#define RREQ_LIMIT 5                        // Amount of RREQ packets to send before attempting to connect to Wi-Fi again
+// #define NETWORK_RECORD_TIME 600000       // 10m
+#define NETWORK_RECORD_TIME CYCLE_TIME*10   // for debugging only
 
 #include <Arduino.h>
 #include "LoRaSENSE.h"
@@ -143,11 +145,12 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
     SoftwareSerial pms_ss(PMS7003_TX, PMS7003_RX);
     PMS pms(pms_ss);
     PMS::DATA pms_data;
+    uint32_t lastPmsRead = 0;                       // last time PMS7003 sensor was read in millis
   #endif
 #endif
 
 //LoRaSENSE
-class LoRaSENSE LoRaSENSE(node_ids, node_tokens, node_rsta_tokens, node_netr_tokens, nodes, NODE_ID, ssid_arr, pwd_arr, wifi_arr_len, MIN_HOP, WIFI_TIMEOUT, RREQ_TIMEOUT, CYCLE_TIME);
+class LoRaSENSE LoRaSENSE(node_ids, node_tokens, node_rsta_tokens, node_netr_tokens, nodes, NODE_ID, ssid_arr, pwd_arr, wifi_arr_len, WIFI_ONLY, MIN_HOP, WIFI_TIMEOUT, RREQ_TIMEOUT, RREQ_LIMIT, CYCLE_TIME);
 
 class NetworkRecordNode {
     public:
@@ -163,6 +166,8 @@ class NetworkRecordNode {
 
 //Network record data
 NetworkRecordNode* networkRecord = nullptr;
+long packetSendAttempts = 0;
+long totalBytesSent = 0;
 int currentPacketId = 0;          
 long currentPacketRtt = 0;   // time in millis when the current packet was sent
 
@@ -228,9 +233,6 @@ void afterInit() {
   display.display();
 
   Serial.println("Initialization OK!");
-
-  // This can be removed; only here to be able to display after-init message
-  // delay(1000);
 }
 
 void onConnecting() {
@@ -268,7 +270,10 @@ void onConnect() {
 void onSend() {
   currentPacketRtt = millis();
   if (!LoRaSENSE.packetQueueIsEmpty() && currentPacketId != LoRaSENSE.peekPacketQueue()->getPacketId()) {
-    currentPacketId = LoRaSENSE.peekPacketQueue()->getPacketId();
+    Packet* packet = LoRaSENSE.peekPacketQueue();
+    currentPacketId = packet->getPacketId();
+    ++packetSendAttempts;
+    totalBytesSent += packet->getLength() * sizeof(byte);
   }
 }
 
@@ -307,6 +312,8 @@ void setup() {
   #ifdef PMS7003_ON
     #if PMS7003_ON == true
       pms_ss.begin(PMS7003_BAUD);
+      pms.passiveMode();
+      pms.wakeUp();
     #endif
   #endif
 
@@ -372,19 +379,6 @@ void loop() {
   #endif
 
   // Read from PMS7003
-  #ifdef PMS7003_ON
-    #if PMS7003_ON == true
-      while (pms_ss.available()) { 
-        pms_ss.read(); 
-      }
-      pms.requestRead();
-      if (pms.readUntil(pms_data)) {
-        last_pm1 = pms_data.PM_AE_UG_1_0;
-        last_pm2_5 = pms_data.PM_AE_UG_2_5;
-        last_pm10 = pms_data.PM_AE_UG_10_0;
-      }
-    #endif
-  #endif
 
   if (millis() - lastCycle >= CYCLE_TIME) {
 
@@ -442,7 +436,22 @@ void loop() {
             float hic = dht.computeHeatIndex(t, h, false);
           #endif
         #endif
+        #ifdef PMS7003_ON
+        #if PMS7003_ON == true
+          while (pms_ss.available()) { 
+            pms_ss.read(); 
+          }
+          pms.requestRead();
+          if (pms.readUntil(pms_data)) {
+            last_pm1 = pms_data.PM_AE_UG_1_0;
+            last_pm2_5 = pms_data.PM_AE_UG_2_5;
+            last_pm10 = pms_data.PM_AE_UG_10_0;
+          }
+        #endif
+      #endif
 
+        Serial.printf("Lat: %f\n", last_lat);
+        Serial.printf("Lng: %f\n", last_lng);
         Serial.printf("CO: %f\n", c);
         Serial.printf("Humidity: %f\n", h);
         Serial.printf("Temp: %f\n", t);
@@ -493,10 +502,15 @@ void loop() {
     NetworkRecordNode* head = networkRecord;
     int record_len = countNetworkRecord();
     int data_arr_len = 2*record_len;
-    Data_l data_arr[data_arr_len];
-    byte data[data_arr_len*sizeof(Data)];
+    Data_l data_arr[2 + data_arr_len];
+    byte data[8 + data_arr_len*sizeof(Data)];
 
-    for (int i = 0; head != nullptr; i += 2) {
+    Data_l attempts = {packetSendAttempts};
+    Data_l bytes = {totalBytesSent};
+    data_arr[0] = attempts;
+    data_arr[1] = bytes;
+
+    for (int i = 2; head != nullptr; i += 2) {
         data_arr[i].data_l = head->packetId;
         data_arr[i+1].data_l = head->packetRtt;
         NetworkRecordNode* prev = head;
@@ -504,6 +518,8 @@ void loop() {
         delete prev;  // TODO: is this a good idea? (deleting network records before ensuring that they were sent)
     }
     networkRecord = nullptr;  // at this point, all network record nodes should have already been deleted
+    packetSendAttempts = 0;
+    totalBytesSent = 0;
 
     int data_len = appendDataToByteArray(data, 0, data_arr, data_arr_len, sizeof(Data_l));
     Packet* netrPkt = new Packet(NETR_TYP, LoRaSENSE.getId(), LoRaSENSE.getParentId(), LoRaSENSE.getId(), data, data_len);

@@ -268,6 +268,8 @@ bool Packet::send() {
         LoRa.write(payload[i]);
     }
     LoRa.endPacket();
+    // Keep LoRa in continuous receive mode after sending
+    LoRa.receive();
     return true;
 }
 
@@ -370,7 +372,7 @@ int Packet::getRssi() {
 
 
 
-LoRaSENSE::LoRaSENSE(unsigned int* node_ids, char** node_tokens, char** node_rsta_tokens, char** node_netr_tokens, int nodes, unsigned int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, int min_hop, unsigned long wifi_timeout, unsigned long rreq_timeout, unsigned long cycle_time) {
+LoRaSENSE::LoRaSENSE(unsigned int* node_ids, char** node_tokens, char** node_rsta_tokens, char** node_netr_tokens, int nodes, unsigned int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, bool wifi_only, int min_hop, unsigned long wifi_timeout, unsigned long rreq_timeout, unsigned long rreq_limit, unsigned long cycle_time) {
     this->node_ids = node_ids;
     this->node_tokens = node_tokens;
     this->node_rsta_tokens = node_rsta_tokens;
@@ -380,9 +382,11 @@ LoRaSENSE::LoRaSENSE(unsigned int* node_ids, char** node_tokens, char** node_rst
     this->ssid_arr = ssid_arr;
     this->pwd_arr = pwd_arr;
     this->wifi_arr_len = wifi_arr_len;
+    this->wifi_only = wifi_only;
     this->min_hop = min_hop;
     this->wifiTimeout = wifi_timeout;
     this->rreqTimeout = rreq_timeout;
+    this->rreqLimit = rreqLimit;
     this->cycleTime = cycle_time;
     this->funcAfterInit = &empty;
     this->funcOnConnecting = &empty;
@@ -629,10 +633,20 @@ void LoRaSENSE::sendPacketToServer(Packet* packet) {
         // DEBUG
             // Serial.printf("TEST2: data_len=%i\n", data_len);
         //
+        Data_l attempts;
+        Data_l bytes;
+        attempts.data_b[0] = data[0];
+        attempts.data_b[1] = data[1];
+        attempts.data_b[2] = data[2];
+        attempts.data_b[3] = data[3];
+        bytes.data_b[0] = data[4];
+        bytes.data_b[1] = data[5];
+        bytes.data_b[2] = data[6];
+        bytes.data_b[3] = data[7];
         for (int i = 0; i < record_len; ++i) {
             Data_l packetId;
             Data_l packetRtt;
-            int j = i * 2*sizeof(Data_l);
+            int j = i * 2*sizeof(Data_l) + 8;   // the first 8 bytes are for packet attempts and bytes sent
             packetId.data_b[0] = data[j];
             packetId.data_b[1] = data[j + 1];
             packetId.data_b[2] = data[j + 2];
@@ -649,6 +663,8 @@ void LoRaSENSE::sendPacketToServer(Packet* packet) {
             jsonDoc["packetRtts"][i] = packetRtt.data_l;
         }
         jsonDoc["nodeId"] = packet->getSourceId();
+        jsonDoc["sends"] = attempts.data_l;
+        jsonDoc["bytes"] = bytes.data_l;
         // DEBUG
             // Serial.println("TEST3");
         //
@@ -723,6 +739,7 @@ void LoRaSENSE::setup() {
 
 void LoRaSENSE::loop() {
 
+    // Network Connection
     if (connectingToWifi) {
         if ((millis() - lastWifiAttempt) < wifiTimeout && WiFi.status() == WL_CONNECTED) {
             // Connected to Wi-Fi; Node is root
@@ -742,16 +759,22 @@ void LoRaSENSE::loop() {
             this->pushPacketToQueue(rsta);
             funcOnConnect();
         } else if ((millis() - lastWifiAttempt) >= wifiTimeout && wifi_i < wifi_arr_len) {
+            // Failed to connect to Wi-Fi; Connect to another Wi-Fi as specified in ssid_arr and pwd_arr
             connectToWifi(ssid_arr[wifi_i], pwd_arr[wifi_i]);
             ++wifi_i;
-        }
-        else if ((millis() - lastWifiAttempt) >= wifiTimeout) {
-            // Wi-Fi connect failed. Connect to LoRa mesh
+        } else if ((millis() - lastWifiAttempt) >= wifiTimeout && !wifi_only) {
+            // Failed to connect to all specified Wi-Fi; Connect to LoRa mesh
             Serial.println("No valid Wi-Fi router in range.");
             connectingToWifi = false;
             wifi_i = 0;
             WiFi.mode(WIFI_OFF);
             connectToLora();
+        } else if ((millis() - lastWifiAttempt) >= wifiTimeout) {
+            // Unable to connect to all specified Wi-Fi; Try again
+            Serial.println("Unable to connect to Wi-Fi. Reconnecting...");
+            connectingToWifi = true;
+            wifi_i = 0;
+            connectToWifi(ssid_arr[0], pwd_arr[0]);
         }
     }
     else if (connectingToLora) {
@@ -763,6 +786,7 @@ void LoRaSENSE::loop() {
         }
     } 
     
+    // Reconnect to Wi-Fi if not connected
     if (!connected && ((millis() - lastWifiAttempt) > this->wifiTimeout) && min_hop == 0) {
         // Reconnect to Wi-Fi
         connectToWifi(ssid_arr[0], pwd_arr[0]);
@@ -798,34 +822,28 @@ void LoRaSENSE::loop() {
         delete packet;
     }
 
-    // Check if node is currently waiting for a DACK/NACK
+    // Check if node is currently waiting for a DACK
     if (waitingForAck) { 
+        Packet* packet = packetQueue.peekFront();
         if (millis() > lastSendAttempt + (cycleTime / 2)) {
             // ACK timeout
             if (!resent) {
                 // Resend data packet
                 resent = true;
-                Packet* packet = packetQueue.peekFront();
                 Serial.printf("No ACK received for %u. Resending...", packet->getPacketId());
                 sendPacketViaLora(packet, true);
             } else {
                 // TODO: Network reconstruction
-                Serial.println("Total data sending failure.");
+                Serial.printf("Total data sending failure for packet %u.\n", packet->getPacketId());
                 reconnect();
             }
         }
     } else {
-        // DEBUG
-            // Serial.println("TEST3");
-        //
+        // Send packet in queue when NOT waiting for DACK
         sendPacketInQueue();
     }
-
-    // Keep LoRa in continuous receive mode
-    LoRa.receive();
 }
 
-// TODO: this can be simplified
 void LoRaSENSE::connectToWifi(char* ssid, char* pwd) {
     WiFi.mode(WIFI_STA);
     Serial.printf("Connecting to Wi-Fi router \"%s\"...", ssid);
@@ -861,7 +879,6 @@ void LoRaSENSE::reconnect() {
     resent = false;
     startConnectTime = 0;
     connectTime = 0;
-    wifiTimeout = 0;
     lastRreqSent = 0;
     lastWifiAttempt = 0;
     nextSendAttempt = 0;
