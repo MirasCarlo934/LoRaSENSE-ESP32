@@ -139,6 +139,7 @@ class LoRaSENSE {
         bool wifi_only = false;                     // true if node can only connect to wifi
         unsigned long wifiTimeout = 30000;          // time to wait for wifi connection; 30s by default
         unsigned long rreqTimeout = 5000;           // time to wait for RREQ packets; 5s by default
+        unsigned long dackTimeout = 5000;           // time to wait for DACK packet confirmation; 5s by default
         unsigned long rreqLimit = 5;                // RREQ packets to send before connecting to wifi again; 5 by default
         unsigned long cycleTime = 60000;            // 1m by default
 
@@ -181,7 +182,7 @@ class LoRaSENSE {
         void sendPacketToServer(Packet* packet);
 
     public:
-        LoRaSENSE(unsigned int* node_ids, char** node_tokens, char** node_rsta_tokens, char** node_netr_tokens, int nodes, unsigned int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, bool wifi_only, int min_hop, unsigned long wifi_timeout, unsigned long rreq_timeout, unsigned long rreq_limt, unsigned long cycle_time);
+        LoRaSENSE(unsigned int* node_ids, char** node_tokens, char** node_rsta_tokens, char** node_netr_tokens, int nodes, unsigned int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, bool wifi_only, int min_hop, unsigned long wifi_timeout, unsigned long rreq_timeout, unsigned long dack_timeout, unsigned long rreq_limt, unsigned long cycle_time);
         ~LoRaSENSE();
 
         void setup();

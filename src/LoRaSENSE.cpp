@@ -372,7 +372,7 @@ int Packet::getRssi() {
 
 
 
-LoRaSENSE::LoRaSENSE(unsigned int* node_ids, char** node_tokens, char** node_rsta_tokens, char** node_netr_tokens, int nodes, unsigned int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, bool wifi_only, int min_hop, unsigned long wifi_timeout, unsigned long rreq_timeout, unsigned long rreq_limit, unsigned long cycle_time) {
+LoRaSENSE::LoRaSENSE(unsigned int* node_ids, char** node_tokens, char** node_rsta_tokens, char** node_netr_tokens, int nodes, unsigned int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, bool wifi_only, int min_hop, unsigned long wifi_timeout, unsigned long rreq_timeout, unsigned long dack_timeout, unsigned long rreq_limit, unsigned long cycle_time) {
     this->node_ids = node_ids;
     this->node_tokens = node_tokens;
     this->node_rsta_tokens = node_rsta_tokens;
@@ -825,7 +825,7 @@ void LoRaSENSE::loop() {
     // Check if node is currently waiting for a DACK
     if (waitingForAck) { 
         Packet* packet = packetQueue.peekFront();
-        if (millis() > lastSendAttempt + (cycleTime / 2)) {
+        if (millis() > lastSendAttempt + dackTimeout) {
             // ACK timeout
             if (!resent) {
                 // Resend data packet
