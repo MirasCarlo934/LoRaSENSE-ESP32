@@ -6,13 +6,13 @@
 */
 
 // Constants
-#define NODE_ID 0xAAAAAAAA
+// #define NODE_ID 0xAAAAAAAA
 // #define NODE_ID 0xBBBBBBBB
 // #define NODE_ID 0xCCCCCCCC
-// #define NODE_ID 0xDDDDDDDD
+#define NODE_ID 0xDDDDDDDD
 // #define NODE_ID 0xEEEEEEEE
 #define MOBILE_NODE false
-#define MIN_HOP 0
+#define MIN_HOP 2
 #define WIFI_ONLY false
 
 // #define DATA_TESTING true        // set true to send randomized data to the network
@@ -355,6 +355,22 @@ void setup() {
   LoRaSENSE.setOnConnect(&onConnect);
   LoRaSENSE.setOnSendSuccess(&onSendSuccess);
   LoRaSENSE.setOnSend(&onSend);
+
+  // delay to avoid packet collision when 2 or more nodes are turned on simultaneously
+  long rand_delay = esp_random() % RREQ_TIMEOUT;
+  display.clearDisplay();
+  display.setTextColor(WHITE);
+  display.setTextSize(1);
+  display.setCursor(0,0);
+  display.print("Initialization DONE");
+  display.setCursor(0,10);
+  display.print("Wait for ");
+  display.print(rand_delay);
+  display.print("ms");
+  display.display();
+  lastCycle = rand_delay; // delay the first time the node will send data
+  delay(rand_delay);
+
   LoRaSENSE.setup();
 }
 

@@ -171,7 +171,7 @@ Packet::Packet(byte* payload, int len) {
  * @param data_len 
  */
 Packet::Packet(byte type, int sender_id, int receiver_id, int source_id, byte* data, int data_len) {
-    int packet_id = rand();
+    int packet_id = esp_random();
     packet_id /= 10;
     packet_id *= 10;
     if (source_id == 0xAAAAAAAA) {
@@ -472,6 +472,7 @@ void LoRaSENSE::processRrep(Packet* packet) {
             byte* data_b = new byte[2*sizeof(Data_l)];
             int data_len = appendDataToByteArray(data_b, 0, data, 2, sizeof(Data_l));
             Packet* rsta = new Packet(RSTA_TYP, this->id, this->parent_id, this->id, data_b, data_len);
+            nextSendAttempt = millis() + (esp_random() % cycleTime);
             this->pushPacketToQueue(rsta);
             delete data;
             funcOnConnect();
@@ -551,7 +552,7 @@ void LoRaSENSE::sendPacketViaLora(Packet* packet, bool waitForAck) {
         lastSendAttempt = millis();
         funcOnSend();
     } else {
-        long rand_t = (rand() % cycleTime);
+        long rand_t = (esp_random() % cycleTime);
         nextSendAttempt = millis() + rand_t;
         Serial.printf("Possible collision detected, rescheduling after %ums...\n", rand_t);
     }
@@ -747,10 +748,6 @@ void LoRaSENSE::setup() {
     //Setup Wi-Fi
     WiFi.mode(WIFI_STA);
     Serial.println("WiFi initialized");
-
-    //Setup randomizer
-    srand(time(0));
-    rand();
 
     // Finished with initialization
     funcAfterInit();
