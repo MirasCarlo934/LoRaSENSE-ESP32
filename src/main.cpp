@@ -13,7 +13,7 @@
 // #define NODE_ID 0xEEEEEEEE
 #define MOBILE_NODE false
 #define MIN_HOP 0
-#define WIFI_ONLY false
+#define WIFI_ONLY true
 
 // #define DATA_TESTING true        // set true to send randomized data to the network
 #define DATA_SEND true              // set true to send sensor data to the network
@@ -23,15 +23,13 @@
 #define PMS7003_ON true
 
 // #define CYCLE_TIME 10000                    // 10s, for testing only
-#define CYCLE_TIME 60000                    // 60s, default
-// #define CYCLE_TIME 150000                   // 150s, in accordance with the 60s-90s cycle time of MQ-7
+#define CYCLE_TIME 150000                   // 150s, in accordance with the 60s-90s cycle time of MQ-7
 #define WIFI_TIMEOUT 30000                  // 30s
 #define RREQ_TIMEOUT 5000                   // 5s
 #define DACK_TIMEOUT 5000                   // 5s
 #define RREQ_LIMIT 5                        // Amount of RREQ packets to send before attempting to connect to Wi-Fi again
 // #define NETWORK_RECORD_TIME 600000       // 10m
-// #define NETWORK_RECORD_TIME CYCLE_TIME*10   // for debugging only
-#define NETWORK_RECORD_TIME 360000          // 6m, 10 NETRs per hour
+#define NETWORK_RECORD_TIME CYCLE_TIME*10   // for debugging only
 
 #include <Arduino.h>
 #include "LoRaSENSE.h"
@@ -286,7 +284,6 @@ void onSend() {
 void onSendSuccess() {
   // add network record
   if (!LoRaSENSE.packetQueueIsEmpty()) {
-    Packet* packet = LoRaSENSE.peekPacketQueue();
     byte packetType = LoRaSENSE.peekPacketQueue()->getType();
     if (packet->getType() == DATA_TYP || packet->getType() == NETR_TYP || packet->getType() == RSTA_TYP) {
       totalBytesSent += packet->getLength() * sizeof(byte);
