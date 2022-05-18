@@ -64,6 +64,7 @@ class Packet {
         long len;
         int data_len;
         int rssi = 0;   // holds the RSSI of the packet when received
+        long send_time = 0; // absolute time in millis when the packet will be sent for delay purposes, 0 if send immediately
         void defaultInit(byte type, int packet_id, int sender_id, int receiver_id, int source_id, byte* data, int data_len);
    
     public:
@@ -92,6 +93,8 @@ class Packet {
         int getDataLength();
         void setRssi(int rssi);
         int getRssi();
+        void setSendTime(long send_time);
+        long getSendTime();
 
 };
 
@@ -118,6 +121,9 @@ class PacketQueue {
         void pushFront(Packet* packet);
         Packet* peekFront();
         Packet* popFront();
+        Packet* peek(int position);
+        Packet* pop(int position);
+        // Packet* swapFrontThenPeek(int position);
 
 };
 
