@@ -137,17 +137,11 @@ Packet* PacketQueue::popFront() {
 }
 
 Packet* PacketQueue::peek(int position) {
-    // DEBUG
-        Serial.println("PEEK HAHA");
-    //
     if (isEmpty()) {
         Serial.println("PacketQueue empty!");
         throw 0;
     }
     if (position == 0) {
-        // DEBUG
-            Serial.println("RETURNING FRONT PEEK");
-        //
         return peekFront();
     }
     int i = 0;
@@ -155,26 +149,17 @@ Packet* PacketQueue::peek(int position) {
     while (i < position) {
         node = node->next;
         ++i;
-        // DEBUG
-            Serial.println("PEEK " + i);
-        //
     }
     Packet* packet = node->packet;
     return packet;
 }
 
 Packet* PacketQueue::pop(int position) {
-    // DEBUG
-        Serial.println("POP HAHA");
-    //
     if (isEmpty()) {
         Serial.println("PacketQueue empty!");
         throw 0;
     }
     if (position == 0) {
-        // DEBUG
-            Serial.println("RETURNING FRONT POP");
-        //
         return popFront();
     }
     int i = 0;
@@ -184,9 +169,6 @@ Packet* PacketQueue::pop(int position) {
         prev = node;
         node = node->next;
         ++i;
-        // DEBUG
-            Serial.println("POP " + i);
-        //
     }
     Packet* packet = node->packet;
     prev->next = node->next;
@@ -613,12 +595,9 @@ void LoRaSENSE::processNetr(Packet* packet) {
 
 void LoRaSENSE::sendPacketViaLora(Packet* packet, bool waitForAck) {
     // DEBUG
-        Serial.printf("Sending %s packet with ID: %i\n", packet->getTypeInString(), packet->getPacketId());
+        // Serial.printf("Sending %s packet with ID: %i\n", packet->getTypeInString(), packet->getPacketId());
     //
     bool sendSuccess = packet->send();
-    // DEBUG
-        Serial.println("LORA SEND SUCCESS");
-    //
     if (sendSuccess) {
         waitingForAck = waitForAck;
         lastSendAttempt = millis();
@@ -1024,7 +1003,7 @@ bool LoRaSENSE::sendPacketInQueue() {
             // Serial.println("TEST4");
         //
         // DEBUG
-            Serial.println("SEND PACKET IN QUEUE");
+            // Serial.println("SEND PACKET IN QUEUE");
         //
         Packet* packet;
         int i = 0;
@@ -1032,17 +1011,16 @@ bool LoRaSENSE::sendPacketInQueue() {
             packet = packetQueue.peek(i);
             ++i;
             // DEBUG
-                Serial.printf("TEST1: %i", packet->getPacketId());
-                Serial.printf(" || %i\n", packet->getSendTime());
+                // Serial.printf("TEST1: %i", packet->getPacketId());
+                // Serial.printf(" || %i\n", packet->getSendTime());
             //
         } while (packet->getSendTime() > millis() && i < packetQueue.getSize()); 
         if (packet->getSendTime() > millis()) {
-            Serial.printf("No viable packet ready to send");
             return false;
         }
         if (i > 1) {
             // DEBUG
-                Serial.println("TEST2: " + packet->getPacketId());
+                // Serial.println("TEST2: " + packet->getPacketId());
             //
             packetQueue.pop(i);
             packetQueue.pushFront(packet);
@@ -1055,24 +1033,24 @@ bool LoRaSENSE::sendPacketInQueue() {
             ) {
             // Send packet via LoRa
             // DEBUG
-                Serial.println("TEST3");
+                // Serial.println("TEST3");
             //
             bool waitForAck = false;
             if (packet->getType() != RREQ_TYP && packet->getType() != RERR_TYP) {
-                Serial.printf("[LORA] Sending %s packet %i to node %s...", packet->getTypeInString(), packet->getPacketId(), String(packet->getReceiverId(), HEX).c_str());
+                Serial.printf("[LORA] Sending %s packet %i to node %s...\n", packet->getTypeInString(), packet->getPacketId(), String(packet->getReceiverId(), HEX).c_str());
             } else {
-                Serial.printf("[LORA] Broadcasting %s packet %i...", packet->getTypeInString(), packet->getPacketId());
+                Serial.printf("[LORA] Broadcasting %s packet %i...\n", packet->getTypeInString(), packet->getPacketId());
             }
             if (packet->getType() == DATA_TYP || packet->getType() == RSTA_TYP || packet->getType() == NETR_TYP) {
                 waitForAck = true;
             }
             // DEBUG
-                Serial.println("TEST4");
+                // Serial.println("TEST4");
             //
             sendPacketViaLora(packet, waitForAck);
         } else if (hopCount == 0 && (packet->getType() == DATA_TYP || packet->getType() == RSTA_TYP || packet->getType() == NETR_TYP)) {
             // Send packet via Wi-Fi/HTTP
-            Serial.printf("[WIFI] Sending %s packet %i to server...", packet->getTypeInString(), packet->getPacketId());
+            Serial.printf("[WIFI] Sending %s packet %i to server...\n", packet->getTypeInString(), packet->getPacketId());
             sendPacketToServer(packet);
         } else {
             return false;

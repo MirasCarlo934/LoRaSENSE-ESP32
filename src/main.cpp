@@ -6,10 +6,10 @@
 */
 
 // Constants
-// #define NODE_ID 0xAAAAAAAA
+#define NODE_ID 0xAAAAAAAA
 // #define NODE_ID 0xBBBBBBBB
 // #define NODE_ID 0xCCCCCCCC
-#define NODE_ID 0xDDDDDDDD
+// #define NODE_ID 0xDDDDDDDD
 // #define NODE_ID 0xEEEEEEEE
 #define MOBILE_NODE false
 #define MIN_HOP 0
@@ -185,9 +185,6 @@ int countNetworkRecord() {
 }
 
 void addNetworkRecord(int packetId, long packetRtt) {
-    // DEBUG
-        Serial.printf("Adding new network record (Packet ID: %i, RTT: %li) [count: %i]\n", packetId, packetRtt, countNetworkRecord());
-    //
     if (networkRecord == nullptr) {
         networkRecord = new NetworkRecordNode(packetId, packetRtt);
         return;
@@ -197,6 +194,9 @@ void addNetworkRecord(int packetId, long packetRtt) {
         head = head->next;
     }
     head->next = new NetworkRecordNode(packetId, packetRtt);
+    // DEBUG
+        Serial.printf("New network record added (Packet ID: %i, RTT: %li) [count: %i]\n", packetId, packetRtt, countNetworkRecord());
+    //
 }
 
 void displayInfo() {
@@ -278,6 +278,7 @@ void onSend() {
     if ((packet->getType() == DATA_TYP || packet->getType() == NETR_TYP || packet->getType() == RSTA_TYP) 
         && packet->getSourceId() == LoRaSENSE.getId()) {
       ++packetSendAttempts;
+      Serial.printf("[NETR] Total packets sent: %li\n", packetSendAttempts);
     }
   }
 }
@@ -289,6 +290,7 @@ void onSendSuccess() {
     byte packetType = LoRaSENSE.peekPacketQueue()->getType();
     if (packet->getType() == DATA_TYP || packet->getType() == NETR_TYP || packet->getType() == RSTA_TYP) {
       totalBytesSent += packet->getLength() * sizeof(byte);
+      Serial.printf("[NETR] Total bytes sent: %li\n", totalBytesSent);
       addNetworkRecord(currentPacketId, millis() - currentPacketRtt);
     }
   }
