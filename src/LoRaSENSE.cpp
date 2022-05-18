@@ -180,6 +180,12 @@ Packet::Packet() {
 
 }
 
+/**
+ * @brief Construct a new Packet:: Packet object with existing payload byte array and payload length
+ * 
+ * @param payload 
+ * @param len 
+ */
 Packet::Packet(byte* payload, int len) {
     byte* newPayload = new byte[len];
     for (int i = 0; i < len; ++i) {
@@ -194,8 +200,32 @@ Packet::Packet(byte* payload, int len) {
     }
 }
 
+/**
+ * @brief Construct a new Packet:: Packet object. Default constructor
+ * 
+ * @param type 
+ * @param sender_id 
+ * @param receiver_id 
+ * @param source_id 
+ * @param data 
+ * @param data_len 
+ */
 Packet::Packet(byte type, int sender_id, int receiver_id, int source_id, byte* data, int data_len) {
-    defaultInit(type, rand(), sender_id, receiver_id, source_id, data, data_len);
+    int packet_id = rand();
+    packet_id /= 10;
+    packet_id *= 10;
+    if (source_id == 0xAAAAAAAA) {
+        packet_id += 0;
+    } else if (source_id == 0xBBBBBBBB) {
+        packet_id += 1;
+    } else if (source_id == 0xCCCCCCCC) {
+        packet_id += 2;
+    } else if (source_id == 0xDDDDDDDD) {
+        packet_id += 3;
+    } else {
+        packet_id += 4;
+    }
+    defaultInit(type, packet_id, sender_id, receiver_id, source_id, data, data_len);
 }
 
 Packet::Packet(Packet* packet, int sender_id, int receiver_id) {
