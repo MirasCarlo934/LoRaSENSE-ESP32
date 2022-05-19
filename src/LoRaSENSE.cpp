@@ -136,6 +136,66 @@ Packet* PacketQueue::popFront() {
     }
 }
 
+Packet* PacketQueue::peek(int position) {
+    // DEBUG
+        // Serial.println("PEEK HAHA");
+    //
+    if (isEmpty()) {
+        Serial.println("PacketQueue empty!");
+        throw 0;
+    }
+    if (position == 0) {
+        // DEBUG
+            // Serial.println("RETURNING FRONT PEEK");
+        //
+        return peekFront();
+    }
+    int i = 0;
+    PacketQueueNode* node = this->head;
+    while (i < position) {
+        node = node->next;
+        ++i;
+        // DEBUG
+            // Serial.println("PEEK " + i);
+        //
+    }
+    Packet* packet = node->packet;
+    return packet;
+}
+
+Packet* PacketQueue::pop(int position) {
+    // DEBUG
+        // Serial.println("POP HAHA");
+    //
+    if (isEmpty()) {
+        Serial.println("PacketQueue empty!");
+        throw 0;
+    }
+    if (position == 0) {
+        // DEBUG
+            // Serial.println("RETURNING FRONT POP");
+        //
+        return popFront();
+    }
+    int i = 0;
+    PacketQueueNode* prev;
+    PacketQueueNode* node = this->head;
+    while (i < position) {
+        prev = node;
+        node = node->next;
+        ++i;
+        // DEBUG
+            // Serial.println("POP " + i);
+        //
+    }
+    Packet* packet = node->packet;
+    prev->next = node->next;
+    delete node;
+    return packet;
+}
+
+
+
 Packet::Packet() {
 
 }
@@ -397,6 +457,14 @@ int Packet::getRssi() {
     return this->rssi;
 }
 
+void Packet::setSendTime(long send_time) {
+    this->send_time = send_time;
+}
+
+long Packet::getSendTime() {
+    return this->send_time;
+}
+
 
 
 
@@ -472,7 +540,7 @@ void LoRaSENSE::processRrep(Packet* packet) {
             byte* data_b = new byte[2*sizeof(Data_l)];
             int data_len = appendDataToByteArray(data_b, 0, data, 2, sizeof(Data_l));
             Packet* rsta = new Packet(RSTA_TYP, this->id, this->parent_id, this->id, data_b, data_len);
-            nextSendAttempt = millis() + (esp_random() % cycleTime);
+            // nextSendAttempt = millis() + (esp_random() % cycleTime);
             this->pushPacketToQueue(rsta);
             delete data;
             funcOnConnect();
@@ -552,9 +620,10 @@ void LoRaSENSE::sendPacketViaLora(Packet* packet, bool waitForAck) {
         lastSendAttempt = millis();
         funcOnSend();
     } else {
-        long rand_t = (esp_random() % cycleTime);
-        nextSendAttempt = millis() + rand_t;
-        Serial.printf("Possible collision detected, rescheduling after %ums...\n", rand_t);
+        long rand_delay = (esp_random() % cycleTime);
+        // nextSendAttempt = millis() + rand_t;
+        packet->setSendTime(millis() + rand_delay);
+        Serial.printf("Possible collision detected, rescheduling after %ums...\n", rand_delay);
     }
     if (waitForAck) {
         Serial.printf("Packet sent, awaiting acknowledgment...\n");
@@ -908,7 +977,7 @@ void LoRaSENSE::reconnect() {
     connectTime = 0;
     lastRreqSent = 0;
     lastWifiAttempt = 0;
-    nextSendAttempt = 0;
+    // nextSendAttempt = 0;
     lastSendAttempt = 0;
 
     funcOnConnecting();
@@ -942,11 +1011,23 @@ void LoRaSENSE::onLoraReceive(int packetSize) {
 
 bool LoRaSENSE::sendPacketInQueue() {
     if (!packetQueue.isEmpty()) {
-        // DEBUG
-            // Serial.println("TEST4");
-        //
-        Packet* packet = packetQueue.peekFront();
-        if (millis() >= nextSendAttempt && 
+        // Packet* packet = packetQueue.peekFront();
+        Packet* packet;
+        int i = 0;
+        for (; i < packetQueue.getSize(); ++i) {
+            packet = packetQueue.peek(i);
+            if (packet->getSendTime() < millis()) {
+                break;
+            }
+        }
+        if (i > 0) {
+            packetQueue.pop(i);
+            packetQueue.pushFront(packet);
+        } else if (i == packetQueue.getSize()) {
+            Serial.println("No packets ready to be sent");
+            return false;
+        }
+        if (/*millis() >= nextSendAttempt && */
                 (
                     connectingToLora && packet->getType() == RREQ_TYP || 
                     (connected && (hopCount > 0 || (packet->getType() != DATA_TYP && packet->getType() != RSTA_TYP && packet->getType() != NETR_TYP)))

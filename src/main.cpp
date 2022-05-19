@@ -13,6 +13,7 @@
 // #define NODE_ID 0xEEEEEEEE
 #define MOBILE_NODE false
 #define MIN_HOP 2
+#define MAX_HOP 2
 #define WIFI_ONLY false
 
 // #define DATA_TESTING true        // set true to send randomized data to the network
@@ -22,11 +23,12 @@
 #define MQ7_ON false
 #define PMS7003_ON true
 
+#define STARTUP_DELAY_MAX 10000     // max of 10s delay upon startup
 // #define CYCLE_TIME 10000                    // 10s, for testing only
 #define CYCLE_TIME 60000                    // 60s, default
 // #define CYCLE_TIME 150000                   // 150s, in accordance with the 60s-90s cycle time of MQ-7
 #define WIFI_TIMEOUT 30000                  // 30s
-#define RREQ_TIMEOUT 5000                   // 5s
+#define RREQ_TIMEOUT 1000                   // 1s
 #define DACK_TIMEOUT 5000                   // 5s
 #define RREQ_LIMIT 5                        // Amount of RREQ packets to send before attempting to connect to Wi-Fi again
 // #define NETWORK_RECORD_TIME 600000       // 10m
@@ -357,7 +359,8 @@ void setup() {
   LoRaSENSE.setOnSend(&onSend);
 
   // delay to avoid packet collision when 2 or more nodes are turned on simultaneously
-  long rand_delay = esp_random() % RREQ_TIMEOUT;
+  long rand_delay = esp_random() % STARTUP_DELAY_MAX;
+  Serial.printf("Initialization DONE. Wait for %ims\n", rand_delay);
   display.clearDisplay();
   display.setTextColor(WHITE);
   display.setTextSize(1);
