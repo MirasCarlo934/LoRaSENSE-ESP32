@@ -470,7 +470,7 @@ long Packet::getSendTime() {
 
 
 
-LoRaSENSE::LoRaSENSE(unsigned int* node_ids, char** node_tokens, char** node_rsta_tokens, char** node_netr_tokens, int nodes, unsigned int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, bool wifi_only, int min_hop, unsigned long wifi_timeout, unsigned long rreq_timeout, unsigned long dack_timeout, unsigned long rreq_limit, unsigned long cycle_time) {
+LoRaSENSE::LoRaSENSE(unsigned int* node_ids, char** node_tokens, char** node_rsta_tokens, char** node_netr_tokens, int nodes, unsigned int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, bool wifi_only, int min_hop, int max_hop, unsigned long wifi_timeout, unsigned long rreq_timeout, unsigned long dack_timeout, unsigned long rreq_limit, unsigned long cycle_time) {
     this->node_ids = node_ids;
     this->node_tokens = node_tokens;
     this->node_rsta_tokens = node_rsta_tokens;
@@ -482,6 +482,7 @@ LoRaSENSE::LoRaSENSE(unsigned int* node_ids, char** node_tokens, char** node_rst
     this->wifi_arr_len = wifi_arr_len;
     this->wifi_only = wifi_only;
     this->min_hop = min_hop;
+    this->max_hop = max_hop;
     this->wifiTimeout = wifi_timeout;
     this->rreqTimeout = rreq_timeout;
     this->rreqLimit = rreqLimit;
@@ -523,7 +524,7 @@ void LoRaSENSE::processRrep(Packet* packet) {
     hopCount = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
     Serial.printf("RREP from %s (hop count: %i, RSSI: %i)\n", String(sourceId, HEX), hopCount, packet->getRssi());
     if (hopCount < (this->hopCount - 1) && packet->getRssi() >= RSSI_THRESH) {
-        if (hopCount >= min_hop-1) {
+        if (hopCount >= min_hop-1 && hopCount <= max_hop-1) {
             // Connected to network via LoRa
             connectTime = millis() - this->startConnectTime;
             this->parent_id = sourceId;
