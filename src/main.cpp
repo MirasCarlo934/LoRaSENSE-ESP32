@@ -6,10 +6,10 @@
 */
 
 // Constants
-#define NODE_ID 0xAAAAAAAA
+// #define NODE_ID 0xAAAAAAAA
 // #define NODE_ID 0xBBBBBBBB
 // #define NODE_ID 0xCCCCCCCC
-// #define NODE_ID 0xDDDDDDDD
+#define NODE_ID 0xDDDDDDDD
 // #define NODE_ID 0xEEEEEEEE
 #define MOBILE_NODE false
 #define MIN_HOP 2
@@ -23,13 +23,13 @@
 #define MQ7_ON false
 #define PMS7003_ON true
 
-#define STARTUP_DELAY_MAX 10000     // max of 10s delay upon startup
+#define STARTUP_DELAY_MAX 5000     // max of 10s delay upon startup
 // #define CYCLE_TIME 10000                    // 10s, for testing only
 #define CYCLE_TIME 60000                    // 60s, default
 // #define CYCLE_TIME 150000                   // 150s, in accordance with the 60s-90s cycle time of MQ-7
 #define WIFI_TIMEOUT 30000                  // 30s
 #define RREQ_TIMEOUT 1000                   // 1s
-#define RREP_DELAY_MAX 3000         // max of 3s delay when sending RREP packets
+#define RREP_DELAY_MAX 1000         // max of 3s delay when sending RREP packets
 #define DACK_TIMEOUT 5000                   // 5s
 #define RREQ_LIMIT 5                        // Amount of RREQ packets to send before attempting to connect to Wi-Fi again
 // #define NETWORK_RECORD_TIME 600000       // 10m
@@ -156,7 +156,7 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
 #endif
 
 //LoRaSENSE
-class LoRaSENSE LoRaSENSE(node_ids, node_tokens, node_rsta_tokens, node_netr_tokens, nodes, NODE_ID, ssid_arr, pwd_arr, wifi_arr_len, WIFI_ONLY, MIN_HOP, MAX_HOP, WIFI_TIMEOUT, RREQ_TIMEOUT, DACK_TIMEOUT, RREQ_LIMIT, CYCLE_TIME);
+class LoRaSENSE LoRaSENSE(node_ids, node_tokens, node_rsta_tokens, node_netr_tokens, nodes, NODE_ID, ssid_arr, pwd_arr, wifi_arr_len, WIFI_ONLY, MIN_HOP, MAX_HOP, WIFI_TIMEOUT, RREQ_TIMEOUT, RREP_DELAY_MAX, DACK_TIMEOUT, RREQ_LIMIT, CYCLE_TIME);
 
 class NetworkRecordNode {
     public:

@@ -470,7 +470,7 @@ long Packet::getSendTime() {
 
 
 
-LoRaSENSE::LoRaSENSE(unsigned int* node_ids, char** node_tokens, char** node_rsta_tokens, char** node_netr_tokens, int nodes, unsigned int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, bool wifi_only, int min_hop, int max_hop, unsigned long wifi_timeout, unsigned long rreq_timeout, unsigned long dack_timeout, unsigned long rreq_limit, unsigned long cycle_time) {
+LoRaSENSE::LoRaSENSE(unsigned int* node_ids, char** node_tokens, char** node_rsta_tokens, char** node_netr_tokens, int nodes, unsigned int id, char** ssid_arr, char** pwd_arr, int wifi_arr_len, bool wifi_only, int min_hop, int max_hop, unsigned long wifi_timeout, unsigned long rreq_timeout, unsigned long rrep_delay_max, unsigned long dack_timeout, unsigned long rreq_limit, unsigned long cycle_time) {
     this->node_ids = node_ids;
     this->node_tokens = node_tokens;
     this->node_rsta_tokens = node_rsta_tokens;
@@ -485,6 +485,7 @@ LoRaSENSE::LoRaSENSE(unsigned int* node_ids, char** node_tokens, char** node_rst
     this->max_hop = max_hop;
     this->wifiTimeout = wifi_timeout;
     this->rreqTimeout = rreq_timeout;
+    this->rrepDelayMax = rrepDelayMax;
     this->rreqLimit = rreqLimit;
     this->cycleTime = cycle_time;
     this->funcAfterInit = &empty;
@@ -509,6 +510,7 @@ void LoRaSENSE::processRreq(Packet* packet) {
     data[2] = (hopCount >> 8) & 0xFF;
     data[3] = hopCount & 0xFF;
     Packet* rrep = new Packet(RREP_TYP, this->id, packet->getSenderId(), this->id, data, 4);
+    rrep->setSendTime(millis() + (esp_random() % rrepDelayMax));
     this->pushPacketToQueue(rrep);
 
     delete data;
@@ -1016,18 +1018,20 @@ bool LoRaSENSE::sendPacketInQueue() {
         Packet* packet;
         int i = 0;
         for (; i < packetQueue.getSize(); ++i) {
+            // Serial.println(i);
             packet = packetQueue.peek(i);
             if (packet->getSendTime() < millis()) {
                 break;
             }
         }
-        if (i > 0) {
+        // Serial.printf("AFTER %i\n", i);
+        if (i == packetQueue.getSize()) {
+            // Serial.println("No packets ready to be sent");
+            return false;
+        } else if (i > 0) {
             packetQueue.pop(i);
             packetQueue.pushFront(packet);
-        } else if (i == packetQueue.getSize()) {
-            Serial.println("No packets ready to be sent");
-            return false;
-        }
+        } 
         if (/*millis() >= nextSendAttempt && */
                 (
                     connectingToLora && packet->getType() == RREQ_TYP || 
