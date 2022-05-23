@@ -150,6 +150,10 @@ class LoRaSENSE {
         unsigned long rreqLimit = 5;                // RREQ packets to send before connecting to wifi again; 5 by default
         unsigned long cycleTime = 60000;            // 1m by default
 
+        // Network performance variables
+        // long totalSends = 0;
+        // long totalBytesSentSuccessfully = 0;
+
         // Network connection variables
         int parent_id = 0;
         int wifi_i = 0;                             // iterator for ssid_arr and pwd_arr

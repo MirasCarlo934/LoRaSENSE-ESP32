@@ -8,12 +8,13 @@
 // Constants
 // #define NODE_ID 0xAAAAAAAA
 // #define NODE_ID 0xBBBBBBBB
-// #define NODE_ID 0xCCCCCCCC
-#define NODE_ID 0xDDDDDDDD
+#define NODE_ID 0xCCCCCCCC
+// #define NODE_ID 0xDDDDDDDD
 // #define NODE_ID 0xEEEEEEEE
 #define MOBILE_NODE false
-#define MIN_HOP 2
-#define MAX_HOP 2
+#define MIN_HOP 1
+#define MAX_HOP 1
+// #define MAX_HOP INT32_MAX
 #define WIFI_ONLY false
 
 // #define DATA_TESTING true        // set true to send randomized data to the network
@@ -23,18 +24,18 @@
 #define MQ7_ON false
 #define PMS7003_ON true
 
-#define STARTUP_DELAY_MAX 5000     // max of 10s delay upon startup
+#define STARTUP_DELAY_MAX 5000     // max of 5s delay upon startup
 // #define CYCLE_TIME 10000                    // 10s, for testing only
-#define CYCLE_TIME 60000                    // 60s, default
+#define CYCLE_TIME 60000                    // DEFAULT: 60s
 // #define CYCLE_TIME 150000                   // 150s, in accordance with the 60s-90s cycle time of MQ-7
 #define WIFI_TIMEOUT 30000                  // 30s
-#define RREQ_TIMEOUT 1000                   // 1s
-#define RREP_DELAY_MAX 1000         // max of 3s delay when sending RREP packets
+#define RREQ_TIMEOUT 3000                   // 3s
+#define RREP_DELAY_MAX 1000                 // max of 1s delay when sending RREP packets
 #define DACK_TIMEOUT 5000                   // 5s
 #define RREQ_LIMIT 5                        // Amount of RREQ packets to send before attempting to connect to Wi-Fi again
 // #define NETWORK_RECORD_TIME 600000       // 10m
-// #define NETWORK_RECORD_TIME CYCLE_TIME*10   // for debugging only
-#define NETWORK_RECORD_TIME 360000          // 6m, 10 NETRs per hour
+// #define NETWORK_RECORD_TIME CYCLE_TIME*5   // for debugging only
+#define NETWORK_RECORD_TIME 360000          // DEFAULT: 6m, 10 NETRs per hour
 
 #include <Arduino.h>
 #include "LoRaSENSE.h"
@@ -160,8 +161,8 @@ class LoRaSENSE LoRaSENSE(node_ids, node_tokens, node_rsta_tokens, node_netr_tok
 
 class NetworkRecordNode {
     public:
-        int packetId;
-        long packetRtt;
+        int packetId = -1;
+        long packetRtt = -1;
         NetworkRecordNode* next;
         NetworkRecordNode(int packetId, long packetRtt) {
             this->packetId = packetId;
@@ -172,8 +173,13 @@ class NetworkRecordNode {
 
 //Network record data
 NetworkRecordNode* networkRecord = nullptr;
-long packetSendAttempts = 0;
-long totalBytesSent = 0;
+long packetSends = 0;         // packet sends from ALL nodes
+long successfulPacketSends = 0;
+long origPacketSends = 0;     // original packet sends from this node
+long successfulOrigPacketSends = 0;
+long allRtt = 0;
+long origRtt = 0;
+long successfulBytesSent = 0;
 int currentPacketId = 0;          
 long currentPacketRtt = 0;   // time in millis when the current packet was sent
 
@@ -274,14 +280,17 @@ void onConnect() {
 }
 
 void onSend() {
-  currentPacketRtt = millis();
   if (!LoRaSENSE.packetQueueIsEmpty() && currentPacketId != LoRaSENSE.peekPacketQueue()->getPacketId()) {
     Packet* packet = LoRaSENSE.peekPacketQueue();
+    if (currentPacketId != packet->getPacketId()) { // new packet sent; not a resend
+      currentPacketRtt = millis();
+    }
     currentPacketId = packet->getPacketId();
-    if ((packet->getType() == DATA_TYP || packet->getType() == NETR_TYP || packet->getType() == RSTA_TYP) 
-        && packet->getSourceId() == LoRaSENSE.getId()) {
-      ++packetSendAttempts;
-      Serial.printf("[NETR] Total packets sent: %li\n", packetSendAttempts);
+    if (packet->getType() == DATA_TYP || packet->getType() == NETR_TYP || packet->getType() == RSTA_TYP) {
+      if (packet->getSourceId() == LoRaSENSE.getId()) {
+        ++origPacketSends;
+      }
+      ++packetSends;
     }
   }
 }
@@ -292,9 +301,17 @@ void onSendSuccess() {
     Packet* packet = LoRaSENSE.peekPacketQueue();
     byte packetType = LoRaSENSE.peekPacketQueue()->getType();
     if (packet->getType() == DATA_TYP || packet->getType() == NETR_TYP || packet->getType() == RSTA_TYP) {
-      totalBytesSent += packet->getLength() * sizeof(byte);
-      Serial.printf("[NETR] Total bytes sent: %li\n", totalBytesSent);
-      addNetworkRecord(currentPacketId, millis() - currentPacketRtt);
+      currentPacketRtt = millis() - currentPacketRtt;
+      if (packet->getSourceId() == LoRaSENSE.getId()) {
+        ++successfulOrigPacketSends;
+        origRtt += currentPacketRtt;
+      }
+      ++successfulPacketSends;
+      allRtt += currentPacketRtt;
+      successfulBytesSent += packet->getLength() * sizeof(byte);
+      addNetworkRecord(currentPacketId, currentPacketRtt);
+      Serial.printf("[NETR] New network record with sends: %li, succSends: %li, origSends: %li, succOrigSends: %li, rtt: %li, origRtt: %li, bytes: %li\n", 
+        packetSends, successfulPacketSends, origPacketSends, successfulOrigPacketSends, allRtt, origRtt, successfulBytesSent);
     }
   }
 
@@ -507,13 +524,17 @@ void loop() {
             Data humid = {h};
             Data_d lat = {last_lat};
             Data_d lng = {last_lng};
+            Data_l sends = {packetSends};
+            Data_l bytes = {successfulBytesSent};
 
             int data_arr_len = 6;
             Data data_arr[data_arr_len] = {pm1, pm2_5, pm10, co, temp, humid};
             Data_d gps_data_arr[] = {lat, lng};
-            byte data[data_arr_len*sizeof(Data) + 2*sizeof(Data_d)];
+            Data_l network_data_arr[] = {sends, bytes};
+            byte data[data_arr_len*sizeof(Data) + 2*sizeof(Data_d)/* + 2*sizeof(Data_l)*/];
             int data_len = appendDataToByteArray(data, 0, data_arr, data_arr_len, sizeof(Data));
             data_len = appendDataToByteArray(data, data_len, gps_data_arr, 2, sizeof(Data_d));
+            data_len = appendDataToByteArray(data, data_len, network_data_arr, 2, sizeof(Data_l));
             Packet* dataPkt = new Packet(DATA_TYP, LoRaSENSE.getId(), LoRaSENSE.getParentId(), LoRaSENSE.getId(), data, data_len);
             Serial.printf("Adding data packet %i to queue...\n", dataPkt->getPacketId());
             LoRaSENSE.pushPacketToQueue(dataPkt);
@@ -530,16 +551,33 @@ void loop() {
 
     NetworkRecordNode* head = networkRecord;
     int record_len = countNetworkRecord();
-    int data_arr_len = 2*record_len;
-    Data_l data_arr[2 + data_arr_len];
-    byte data[8 + data_arr_len*sizeof(Data)];
+    int data_arr_len = 2*record_len + 7; // additional 7 for sends, succSends, origSends, succOrigSends, rtt, origRtt, and bytes
+    Data_l data_arr[data_arr_len];
+    byte data[data_arr_len*sizeof(Data_l)];
 
-    Data_l attempts = {packetSendAttempts};
-    Data_l bytes = {totalBytesSent};
-    data_arr[0] = attempts;
-    data_arr[1] = bytes;
+    // IN THIS ORDER ONLY!
+    allRtt = allRtt / successfulPacketSends;
+    origRtt = origRtt / successfulOrigPacketSends;
 
-    for (int i = 2; head != nullptr; i += 2) {
+    Serial.printf("[NETR] Sending NETR with sends: %li, succSends: %li, origSends: %li, succOrigSends: %li, rtt: %li, origRtt: %li, bytes: %li\n", 
+        packetSends, successfulPacketSends, origPacketSends, successfulOrigPacketSends, allRtt, origRtt, successfulBytesSent);
+
+    Data_l sends = {packetSends};
+    Data_l succSends = {successfulPacketSends};
+    Data_l origSends = {origPacketSends};
+    Data_l succOrigSends = {successfulOrigPacketSends};
+    Data_l succBytes = {successfulBytesSent};
+    Data_l rtt = {allRtt};
+    Data_l d_origRtt = {origRtt};
+    data_arr[0] = sends;
+    data_arr[1] = succSends;
+    data_arr[2] = origSends;
+    data_arr[3] = succOrigSends;
+    data_arr[4] = rtt;
+    data_arr[5] = d_origRtt;
+    data_arr[6] = succBytes;
+
+    for (int i = 7; head != nullptr; i += 2) {
         data_arr[i].data_l = head->packetId;
         data_arr[i+1].data_l = head->packetRtt;
         NetworkRecordNode* prev = head;
@@ -547,8 +585,13 @@ void loop() {
         delete prev;  // TODO: is this a good idea? (deleting network records before ensuring that they were sent)
     }
     networkRecord = nullptr;  // at this point, all network record nodes should have already been deleted
-    packetSendAttempts = 0;
-    totalBytesSent = 0;
+    packetSends = 0;
+    successfulPacketSends = 0;
+    origPacketSends = 0;
+    successfulOrigPacketSends = 0;
+    successfulBytesSent = 0;
+    allRtt = 0;
+    origRtt = 0;
 
     int data_len = appendDataToByteArray(data, 0, data_arr, data_arr_len, sizeof(Data_l));
     Packet* netrPkt = new Packet(NETR_TYP, LoRaSENSE.getId(), LoRaSENSE.getParentId(), LoRaSENSE.getId(), data, data_len);

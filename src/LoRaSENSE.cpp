@@ -544,7 +544,7 @@ void LoRaSENSE::processRrep(Packet* packet) {
             int data_len = appendDataToByteArray(data_b, 0, data, 2, sizeof(Data_l));
             Packet* rsta = new Packet(RSTA_TYP, this->id, this->parent_id, this->id, data_b, data_len);
             // nextSendAttempt = millis() + (esp_random() % cycleTime);
-            this->pushPacketToQueue(rsta);
+            this->pushPacketToQueueFront(rsta);
             delete data;
             funcOnConnect();
         }
@@ -602,6 +602,7 @@ void LoRaSENSE::processDack(Packet* packet) {
     resent = false;
     funcOnSendSuccess();
     Packet* sentPacket = packetQueue.popFront();
+    // totalBytesSentSuccessfully += sentPacket->getLength();
     delete sentPacket;
 }
 
@@ -621,12 +622,14 @@ void LoRaSENSE::sendPacketViaLora(Packet* packet, bool waitForAck) {
     if (sendSuccess) {
         waitingForAck = waitForAck;
         lastSendAttempt = millis();
+        // totalSends++;
         funcOnSend();
     } else {
         long rand_delay = (esp_random() % cycleTime);
         // nextSendAttempt = millis() + rand_t;
         packet->setSendTime(millis() + rand_delay);
         Serial.printf("Possible collision detected, rescheduling after %ums...\n", rand_delay);
+        return;
     }
     if (waitForAck) {
         Serial.printf("Packet sent, awaiting acknowledgment...\n");
@@ -634,12 +637,13 @@ void LoRaSENSE::sendPacketViaLora(Packet* packet, bool waitForAck) {
         Serial.println("Packet sent.");
         funcOnSendSuccess();
         packetQueue.popFront();
+        // totalBytesSentSuccessfully += packet->getLength();
         delete packet;
     }
 }
 
 void LoRaSENSE::sendPacketToServer(Packet* packet) {
-    StaticJsonDocument<512> jsonDoc;
+    DynamicJsonDocument jsonDoc(2048);
     int data_len = packet->getDataLength();
     byte data[data_len];
     packet->getData(data);
@@ -648,6 +652,7 @@ void LoRaSENSE::sendPacketToServer(Packet* packet) {
     if (packet->getType() == DATA_TYP) {
         Data pm1, pm2_5, pm10, co, temp, humid;
         Data_d lat, lng;
+        Data_l sends, bytes;
         pm1.data_b[0] = data[0];
         pm1.data_b[1] = data[1];
         pm1.data_b[2] = data[2];
@@ -688,6 +693,14 @@ void LoRaSENSE::sendPacketToServer(Packet* packet) {
         lng.data_b[5] = data[37];
         lng.data_b[6] = data[38];
         lng.data_b[7] = data[39];
+        sends.data_b[0] = data[40];
+        sends.data_b[1] = data[41];
+        sends.data_b[2] = data[42];
+        sends.data_b[3] = data[43];
+        bytes.data_b[0] = data[44];
+        bytes.data_b[1] = data[45];
+        bytes.data_b[2] = data[46];
+        bytes.data_b[3] = data[47];
         jsonDoc["packetId"] = packet->getPacketId();
         jsonDoc["sourceId"] = packet->getSourceId();
         jsonDoc["pm1"] = pm1.data_f;
@@ -698,6 +711,8 @@ void LoRaSENSE::sendPacketToServer(Packet* packet) {
         jsonDoc["humid"] = humid.data_f;
         jsonDoc["lat"] = lat.data_d;
         jsonDoc["lng"] = lng.data_d;
+        jsonDoc["sends"] = sends.data_l;
+        jsonDoc["bytes"] = bytes.data_l;
         for (int i = 0; i < this->nodes; ++i) {
             if (packet->getSourceId() == node_ids[i]) {
                 accessToken = node_tokens[i];
@@ -736,20 +751,39 @@ void LoRaSENSE::sendPacketToServer(Packet* packet) {
         // DEBUG
             // Serial.printf("TEST2: data_len=%i\n", data_len);
         //
-        Data_l attempts;
-        Data_l bytes;
-        attempts.data_b[0] = data[0];
-        attempts.data_b[1] = data[1];
-        attempts.data_b[2] = data[2];
-        attempts.data_b[3] = data[3];
-        bytes.data_b[0] = data[4];
-        bytes.data_b[1] = data[5];
-        bytes.data_b[2] = data[6];
-        bytes.data_b[3] = data[7];
+        Data_l sends, succSends, origSends, succOrigSends, rtt, origRtt, bytes;
+        sends.data_b[0] = data[0];
+        sends.data_b[1] = data[1];
+        sends.data_b[2] = data[2];
+        sends.data_b[3] = data[3];
+        succSends.data_b[0] = data[4];
+        succSends.data_b[1] = data[5];
+        succSends.data_b[2] = data[6];
+        succSends.data_b[3] = data[7];
+        origSends.data_b[0] = data[8];
+        origSends.data_b[1] = data[9];
+        origSends.data_b[2] = data[10];
+        origSends.data_b[3] = data[11];
+        succOrigSends.data_b[0] = data[12];
+        succOrigSends.data_b[1] = data[13];
+        succOrigSends.data_b[2] = data[14];
+        succOrigSends.data_b[3] = data[15];
+        rtt.data_b[0] = data[16];
+        rtt.data_b[1] = data[17];
+        rtt.data_b[2] = data[18];
+        rtt.data_b[3] = data[19];
+        origRtt.data_b[0] = data[20];
+        origRtt.data_b[1] = data[21];
+        origRtt.data_b[2] = data[22];
+        origRtt.data_b[3] = data[23];
+        bytes.data_b[0] = data[24];
+        bytes.data_b[1] = data[25];
+        bytes.data_b[2] = data[26];
+        bytes.data_b[3] = data[27];
         for (int i = 0; i < record_len; ++i) {
             Data_l packetId;
             Data_l packetRtt;
-            int j = i * 2*sizeof(Data_l) + 8;   // the first 8 bytes are for packet attempts and bytes sent
+            int j = i * 2*sizeof(Data_l) + (7 * sizeof(Data_l));   // the first 8*sizeof(Data_l) bytes are for sends, succSends, origSends, succOrigSends, rtt, origRtt, bytes 
             packetId.data_b[0] = data[j];
             packetId.data_b[1] = data[j + 1];
             packetId.data_b[2] = data[j + 2];
@@ -766,8 +800,38 @@ void LoRaSENSE::sendPacketToServer(Packet* packet) {
             jsonDoc["packetRtts"][i] = packetRtt.data_l;
         }
         jsonDoc["nodeId"] = packet->getSourceId();
-        jsonDoc["sends"] = attempts.data_l;
+        jsonDoc["sends"] = sends.data_l;
+        jsonDoc["succSends"] = succSends.data_l;
+        jsonDoc["origSends"] = origSends.data_l;
+        jsonDoc["succOrigSends"] = succOrigSends.data_l;
+        jsonDoc["rtt"] = rtt.data_l;
+        jsonDoc["origRtt"] = origRtt.data_l;
         jsonDoc["bytes"] = bytes.data_l;
+        // DEBUG
+            if (!jsonDoc["nodeId"].set(packet->getSourceId())) {
+                Serial.printf("nodeId: %i\n", packet->getSourceId());
+            }
+            if (!jsonDoc["sends"].set(sends.data_l)) {
+                Serial.printf("sends: %i\n", sends.data_l);
+            }
+            if (!jsonDoc["succSends"].set(succSends.data_l)) {
+                Serial.printf("succSends: %i\n", succSends.data_l);
+            }
+            if (!jsonDoc["origSends"].set(origSends.data_l)) {
+                Serial.printf("origSends: %i\n", origSends.data_l);
+            }
+            if (!jsonDoc["succOrigSends"].set(succOrigSends.data_l)) {
+                Serial.printf("succOrigSends: %i\n", succOrigSends.data_l);
+            }
+            if (!jsonDoc["rtt"].set(rtt.data_l)) {
+                Serial.printf("rtt: %i\n", rtt.data_l);
+            }
+            if (!jsonDoc["origRtt"].set(origRtt.data_l)) {
+                Serial.printf("origRtt: %i\n", origRtt.data_l);
+            }
+            if (!jsonDoc["bytes"].set(bytes.data_l)) {
+                Serial.printf("bytes: %i\n", bytes.data_l);
+            }
         // DEBUG
             // Serial.println("TEST3");
         //
@@ -788,12 +852,14 @@ void LoRaSENSE::sendPacketToServer(Packet* packet) {
     endpoint.replace("$ACCESS_TOKEN", accessToken);
     httpClient->begin(endpoint);
     beginSendToServer = millis();
+    // totalSends++;
     funcOnSend();
     int httpResponseCode = httpClient->POST(jsonStr);
     if (httpResponseCode == 200) {
         Serial.printf("sent [time: %lu]\n", millis() - beginSendToServer);
         funcOnSendSuccess();
         packetQueue.popFront();
+        // totalBytesSentSuccessfully += packet->getLength();
         delete packet;
     } else if (httpResponseCode >= 400) {
         Serial.printf("error(%i)", httpResponseCode);
@@ -1062,15 +1128,15 @@ bool LoRaSENSE::sendPacketInQueue() {
 }
 
 void LoRaSENSE::pushPacketToQueue(Packet* packet) {
-    Serial.printf("Pushing %s packet %u to queue...", packet->getTypeInString(), packet->getPacketId());
+    Serial.printf("Pushing %s packet %i to queue...", packet->getTypeInString(), packet->getPacketId());
     this->packetQueue.push(packet);
     Serial.printf("DONE. %u packet/s currently in queue\n", this->packetQueue.getSize());
 }
 
 void LoRaSENSE::pushPacketToQueueFront(Packet* packet) {
-    Serial.printf("Pushing %s packet %u to front of queue...", packet->getTypeInString(), packet->getPacketId());
+    Serial.printf("Pushing %s packet %i to front of queue...", packet->getTypeInString(), packet->getPacketId());
     this->packetQueue.pushFront(packet);
-    Serial.printf("DONE. %u packet/s currently in queue\n", this->packetQueue.getSize());
+    Serial.printf("DONE. %i packet/s currently in queue\n", this->packetQueue.getSize());
 }
 
 Packet* LoRaSENSE::peekPacketQueue() {
