@@ -7,8 +7,8 @@
 
 // Constants
 // #define NODE_ID 0xAAAAAAAA
-// #define NODE_ID 0xBBBBBBBB
-#define NODE_ID 0xCCCCCCCC
+#define NODE_ID 0xBBBBBBBB
+// #define NODE_ID 0xCCCCCCCC
 // #define NODE_ID 0xDDDDDDDD
 // #define NODE_ID 0xEEEEEEEE
 #define MOBILE_NODE false
@@ -127,6 +127,10 @@ float last_humid = 0;
 float last_pm1 = 0;
 float last_pm2_5 = 0;
 float last_pm10 = 0;
+float total_pm1 = 0;
+float total_pm2_5 = 0;
+float total_pm10 = 0;
+int pm_measurements = 0;
 uint32_t orig_free_heap = 0;
 
 //Timekeeping
@@ -424,7 +428,21 @@ void loop() {
     #endif
   #endif
 
-  // Read from PMS7003
+  // Read from PMS7003 every second
+  #if PMS7003_ON == true
+    if (millis() % 1000 == 0) {
+      while (pms_ss.available()) { 
+        pms_ss.read(); 
+      }
+      pms.requestRead();
+      if (pms.readUntil(pms_data)) {
+        total_pm1 += pms_data.PM_AE_UG_1_0;
+        total_pm2_5 += pms_data.PM_AE_UG_2_5;
+        total_pm10 += pms_data.PM_AE_UG_10_0;
+        ++pm_measurements;
+      }
+    }
+  #endif
 
   if (millis() - lastCycle >= CYCLE_TIME) {
 
@@ -482,18 +500,14 @@ void loop() {
             float hic = dht.computeHeatIndex(t, h, false);
           #endif
         #endif
-        #ifdef PMS7003_ON
-        #if PMS7003_ON == true
-          while (pms_ss.available()) { 
-            pms_ss.read(); 
-          }
-          pms.requestRead();
-          if (pms.readUntil(pms_data)) {
-            last_pm1 = pms_data.PM_AE_UG_1_0;
-            last_pm2_5 = pms_data.PM_AE_UG_2_5;
-            last_pm10 = pms_data.PM_AE_UG_10_0;
-          }
-        #endif
+      #ifdef PMS7003_ON == true
+        last_pm1 = total_pm1 / pm_measurements;
+        last_pm2_5 = total_pm2_5 / pm_measurements;
+        last_pm10 = total_pm10 / pm_measurements;
+        total_pm1 = 0;
+        total_pm2_5 = 0;
+        total_pm10 = 0;
+        pm_measurements = 0;
       #endif
 
         Serial.printf("Lat: %f\n", last_lat);

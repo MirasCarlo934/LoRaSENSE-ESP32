@@ -432,6 +432,15 @@ int Packet::getSourceId() {
     return sourceId;
 }
 
+void Packet::setReceiverId(int receiver_id) {
+    if (getType() != RREQ_TYP && getType() != RERR_TYP) {
+        payload[12] = (receiver_id >> 24) & 0xFF;
+        payload[13] = (receiver_id >> 16) & 0xFF;
+        payload[14] = (receiver_id >> 8) & 0xFF;
+        payload[15] = receiver_id & 0xFF;
+    }
+}
+
 int Packet::getReceiverId() {
     int receiverId = 0;
     receiverId = receiverId | (this->payload[12] << 24);
@@ -525,7 +534,7 @@ void LoRaSENSE::processRrep(Packet* packet) {
     int hopCount = 0;
     hopCount = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
     Serial.printf("RREP from %s (hop count: %i, RSSI: %i)\n", String(sourceId, HEX), hopCount, packet->getRssi());
-    if (hopCount < (this->hopCount - 1) && packet->getRssi() >= RSSI_THRESH) {
+    if (sourceId != this->parent_id && hopCount < (this->hopCount - 1) && packet->getRssi() >= RSSI_THRESH) {
         if (hopCount >= min_hop-1 && hopCount <= max_hop-1) {
             // Connected to network via LoRa
             connectTime = millis() - this->startConnectTime;
@@ -618,6 +627,9 @@ void LoRaSENSE::processNetr(Packet* packet) {
 
 void LoRaSENSE::sendPacketViaLora(Packet* packet, bool waitForAck) {
     // Serial.printf("Sending %s packet with ID: %i\n", packet->getTypeInString(), packet->getPacketId());
+    if (packet->getType() != RREQ_TYP && packet->getType() != RERR_TYP && packet->getType() != RREP_TYP && packet->getType() != DACK_TYP) {
+        packet->setReceiverId(this->parent_id); // always set packet receiverId to CURRENT parent ID in case of reconnection to different parent
+    }   
     bool sendSuccess = packet->send();
     if (sendSuccess) {
         waitingForAck = waitForAck;
