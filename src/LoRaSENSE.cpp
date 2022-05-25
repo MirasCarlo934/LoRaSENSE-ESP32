@@ -626,10 +626,7 @@ void LoRaSENSE::processNetr(Packet* packet) {
 }
 
 void LoRaSENSE::sendPacketViaLora(Packet* packet, bool waitForAck) {
-    // Serial.printf("Sending %s packet with ID: %i\n", packet->getTypeInString(), packet->getPacketId());
-    if (packet->getType() != RREQ_TYP && packet->getType() != RERR_TYP && packet->getType() != RREP_TYP && packet->getType() != DACK_TYP) {
-        packet->setReceiverId(this->parent_id); // always set packet receiverId to CURRENT parent ID in case of reconnection to different parent
-    }   
+    // Serial.printf("Sending %s packet with ID: %i\n", packet->getTypeInString(), packet->getPacketId()); 
     bool sendSuccess = packet->send();
     if (sendSuccess) {
         waitingForAck = waitForAck;
@@ -1119,6 +1116,15 @@ bool LoRaSENSE::sendPacketInQueue() {
             // Send packet via LoRa
             bool waitForAck = false;
             if (packet->getType() != RREQ_TYP && packet->getType() != RERR_TYP) {
+                if (packet->getType() != RREQ_TYP && packet->getType() != RERR_TYP && packet->getType() != RREP_TYP && packet->getType() != DACK_TYP) {
+                    //DEBUG
+                        Serial.printf("Receiver ID: %i\n", packet->getReceiverId());
+                    //
+                    packet->setReceiverId(this->parent_id); // always set packet receiverId to CURRENT parent ID in case of reconnection to different parent
+                    //DEBUG
+                        Serial.printf("New Receiver ID: %i\n", packet->getReceiverId());
+                    //
+                }  
                 Serial.printf("[LORA] Sending %s packet %i to node %s...\n", packet->getTypeInString(), packet->getPacketId(), String(packet->getReceiverId(), HEX).c_str());
             } else {
                 Serial.printf("[LORA] Broadcasting %s packet %i...\n", packet->getTypeInString(), packet->getPacketId());

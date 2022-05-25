@@ -7,14 +7,14 @@
 
 // Constants
 // #define NODE_ID 0xAAAAAAAA
-#define NODE_ID 0xBBBBBBBB
+// #define NODE_ID 0xBBBBBBBB
 // #define NODE_ID 0xCCCCCCCC
-// #define NODE_ID 0xDDDDDDDD
+#define NODE_ID 0xDDDDDDDD
 // #define NODE_ID 0xEEEEEEEE
 #define MOBILE_NODE false
-#define MIN_HOP 1
-#define MAX_HOP 1
-// #define MAX_HOP INT32_MAX
+#define MIN_HOP 0
+// #define MAX_HOP 1
+#define MAX_HOP INT32_MAX
 #define WIFI_ONLY false
 
 // #define DATA_TESTING true        // set true to send randomized data to the network
@@ -28,7 +28,7 @@
 // #define CYCLE_TIME 10000                    // 10s, for testing only
 #define CYCLE_TIME 60000                    // DEFAULT: 60s
 // #define CYCLE_TIME 150000                   // 150s, in accordance with the 60s-90s cycle time of MQ-7
-#define WIFI_TIMEOUT 30000                  // 30s
+#define WIFI_TIMEOUT 10000                   // 10s
 #define RREQ_TIMEOUT 3000                   // 3s
 #define RREP_DELAY_MAX 1000                 // max of 1s delay when sending RREP packets
 #define DACK_TIMEOUT 5000                   // 5s
