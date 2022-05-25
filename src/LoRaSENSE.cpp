@@ -1043,8 +1043,10 @@ void LoRaSENSE::reconnect() {
     while(!sendPacketInQueue());    // force send RERR packet
 
     // Reconnection process
+    delay(esp_random() % rreqTimeout);  // delay to avoid packet collisions with other reconnecting nodes
     
     // Not all of these are needed to be reset, but I did just to be safe
+    parent_id = 0;
     hopCount = INT_MAX;
     connectingToWifi = false;
     connectingToLora = false;

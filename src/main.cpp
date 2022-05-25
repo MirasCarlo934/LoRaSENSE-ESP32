@@ -8,11 +8,11 @@
 // Constants
 // #define NODE_ID 0xAAAAAAAA
 // #define NODE_ID 0xBBBBBBBB
-// #define NODE_ID 0xCCCCCCCC
-#define NODE_ID 0xDDDDDDDD
+#define NODE_ID 0xCCCCCCCC
+// #define NODE_ID 0xDDDDDDDD
 // #define NODE_ID 0xEEEEEEEE
 #define MOBILE_NODE false
-#define MIN_HOP 0
+#define MIN_HOP 2
 // #define MAX_HOP 1
 #define MAX_HOP INT32_MAX
 #define WIFI_ONLY false
