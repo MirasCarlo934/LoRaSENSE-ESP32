@@ -6,13 +6,13 @@
 */
 
 // Constants
-// #define NODE_ID 0xAAAAAAAA
+#define NODE_ID 0xAAAAAAAA
 // #define NODE_ID 0xBBBBBBBB
-#define NODE_ID 0xCCCCCCCC
+// #define NODE_ID 0xCCCCCCCC
 // #define NODE_ID 0xDDDDDDDD
 // #define NODE_ID 0xEEEEEEEE
 #define MOBILE_NODE false
-#define MIN_HOP 2
+#define MIN_HOP 0
 // #define MAX_HOP 1
 #define MAX_HOP INT32_MAX
 #define WIFI_ONLY false
@@ -32,7 +32,7 @@
 #define RREQ_TIMEOUT 3000                   // 3s
 #define RREP_DELAY_MAX 1000                 // max of 1s delay when sending RREP packets
 #define DACK_TIMEOUT 5000                   // 5s
-#define RREQ_LIMIT 5                        // Amount of RREQ packets to send before attempting to connect to Wi-Fi again
+#define RREQ_LIMIT 10                        // Amount of RREQ packets to send before attempting to connect to Wi-Fi again
 // #define NETWORK_RECORD_TIME 600000       // 10m
 // #define NETWORK_RECORD_TIME CYCLE_TIME*5   // for debugging only
 #define NETWORK_RECORD_TIME 360000          // DEFAULT: 6m, 10 NETRs per hour
@@ -92,8 +92,12 @@
 
 //Wi-Fi credentials
 const int wifi_arr_len = 1;
-char *ssid_arr[wifi_arr_len] = {"mirasbahay"};
-char *pwd_arr[wifi_arr_len] = {"carlopiadredcels"};
+// char *ssid_arr[wifi_arr_len] = {"mirasbahay"};
+// char *pwd_arr[wifi_arr_len] = {"carlopiadredcels"};
+// char *ssid_arr[wifi_arr_len] = {"trash"};
+// char *pwd_arr[wifi_arr_len] = {"piamiras27laurens"};
+char *ssid_arr[wifi_arr_len] = {"Testiphone"};
+char *pwd_arr[wifi_arr_len] = {"notiphone"};
 
 //Node credentials
 const int nodes = 5;

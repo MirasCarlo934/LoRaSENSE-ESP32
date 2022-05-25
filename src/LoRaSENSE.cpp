@@ -871,10 +871,10 @@ void LoRaSENSE::sendPacketToServer(Packet* packet) {
         // totalBytesSentSuccessfully += packet->getLength();
         delete packet;
     } else if (httpResponseCode >= 400) {
-        Serial.printf("error(%i)", httpResponseCode);
+        Serial.printf("error(%i)\n", httpResponseCode);
         Serial.println(httpClient->getString());
     } else {
-        Serial.printf("fatal error(%i)", httpResponseCode);
+        Serial.printf("fatal error(%i)\n", httpResponseCode);
     }
 }
 
@@ -943,7 +943,7 @@ void LoRaSENSE::loop() {
             wifi_i = 0;
             WiFi.mode(WIFI_OFF);
             connectToLora();
-        } else if ((millis() - lastWifiAttempt) >= wifiTimeout) {
+        } else if ((millis() - lastWifiAttempt) >= wifiTimeout && wifi_only) {
             // Unable to connect to all specified Wi-Fi; Try again
             Serial.println("Unable to connect to Wi-Fi. Reconnecting...");
             connectingToWifi = true;
@@ -952,20 +952,30 @@ void LoRaSENSE::loop() {
         }
     }
     else if (connectingToLora) {
-        if ((millis() - lastRreqSent) > this->rreqTimeout) {
+        if (rreqSent > rreqLimit) {
+            Serial.println("RREQ limit reached. Attempting to connect to Wi-Fi...");
+            wifi_i = 0;
+            rreqSent = 0;
+            connectToWifi(ssid_arr[0], pwd_arr[0]);
+        } else if ((millis() - lastRreqSent) > this->rreqTimeout) {
             // Resend RREQ
             Serial.println("No RREP received.");
             Serial.print("Re-");
             connectToLora();
         }
     } 
+
+    if (connected && min_hop == 0 && WiFi.status() == WL_DISCONNECTED) {
+        Serial.println("Disconnected from Wi-Fi.");
+        reconnect();
+    }
     
     // Reconnect to Wi-Fi if not connected
-    if (!connected && ((millis() - lastWifiAttempt) > this->wifiTimeout) && min_hop == 0) {
-        // Reconnect to Wi-Fi
-        connectToWifi(ssid_arr[0], pwd_arr[0]);
-        ++wifi_i;
-    }
+    // if (!connected && ((millis() - lastWifiAttempt) > this->wifiTimeout) && min_hop == 0) {
+    //     // Reconnect to Wi-Fi
+    //     connectToWifi(ssid_arr[0], pwd_arr[0]);
+    //     ++wifi_i;
+    // }
 
     // Process packets in received packets queue
     if (!receivedPackets.isEmpty()) {
@@ -1024,6 +1034,7 @@ void LoRaSENSE::connectToWifi(char* ssid, char* pwd) {
     WiFi.begin(ssid, pwd);
     lastWifiAttempt = millis();
     connectingToWifi = true;
+    connectingToLora = false;
 }
 
 void LoRaSENSE::connectToLora() {
@@ -1031,7 +1042,9 @@ void LoRaSENSE::connectToLora() {
     Packet* rreq = new Packet(RREQ_TYP, id, 0, 0, nullptr, 0);
     this->pushPacketToQueueFront(rreq);
     lastRreqSent = millis();
+    ++rreqSent;
     connectingToLora = true;
+    connectingToWifi = false;
 }
 
 void LoRaSENSE::reconnect() {
@@ -1053,6 +1066,7 @@ void LoRaSENSE::reconnect() {
     connected = false;
     waitingForAck = false;
     resent = false;
+    rreqSent = 0;
     startConnectTime = 0;
     connectTime = 0;
     lastRreqSent = 0;

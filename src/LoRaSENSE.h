@@ -159,6 +159,7 @@ class LoRaSENSE {
         int parent_id = 0;
         int wifi_i = 0;                             // iterator for ssid_arr and pwd_arr
         int hopCount = INT_MAX;
+        int rreqSent = 0;                           // number of RREQ packets sent since start of connection attempt
         bool connectingToWifi = false;
         bool connectingToLora = false;
         bool connected = false;
