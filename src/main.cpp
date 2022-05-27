@@ -6,13 +6,13 @@
 */
 
 // Constants
-#define NODE_ID 0xAAAAAAAA
-// #define NODE_ID 0xBBBBBBBB
+// #define NODE_ID 0xAAAAAAAA
+#define NODE_ID 0xBBBBBBBB
 // #define NODE_ID 0xCCCCCCCC
 // #define NODE_ID 0xDDDDDDDD
 // #define NODE_ID 0xEEEEEEEE
 #define MOBILE_NODE false
-#define MIN_HOP 0
+#define MIN_HOP 1
 // #define MAX_HOP 1
 #define MAX_HOP INT32_MAX
 #define WIFI_ONLY false
@@ -92,12 +92,12 @@
 
 //Wi-Fi credentials
 const int wifi_arr_len = 1;
-// char *ssid_arr[wifi_arr_len] = {"mirasbahay"};
-// char *pwd_arr[wifi_arr_len] = {"carlopiadredcels"};
+char *ssid_arr[wifi_arr_len] = {"mirasbahay"};
+char *pwd_arr[wifi_arr_len] = {"carlopiadredcels"};
 // char *ssid_arr[wifi_arr_len] = {"trash"};
 // char *pwd_arr[wifi_arr_len] = {"piamiras27laurens"};
-char *ssid_arr[wifi_arr_len] = {"Testiphone"};
-char *pwd_arr[wifi_arr_len] = {"notiphone"};
+// char *ssid_arr[wifi_arr_len] = {"Testiphone"};
+// char *pwd_arr[wifi_arr_len] = {"notiphone"};
 
 //Node credentials
 const int nodes = 5;

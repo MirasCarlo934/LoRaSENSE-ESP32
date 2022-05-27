@@ -965,7 +965,7 @@ void LoRaSENSE::loop() {
         }
     } 
 
-    if (connected && min_hop == 0 && WiFi.status() == WL_DISCONNECTED) {
+    if (connected && min_hop == 0 && (WiFi.status() == WL_DISCONNECTED || WiFi.status() == WL_CONNECTION_LOST)) {
         Serial.println("Disconnected from Wi-Fi.");
         reconnect();
     }
