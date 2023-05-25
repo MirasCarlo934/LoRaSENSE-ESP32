@@ -1,19 +1,18 @@
 /*
   NOTES
-  1. Set NODE_ID and NODE_ACCESS_TOKEN (main.cpp)
-  2. Set MIN_HOP (LoRaSENSE.h)
+  1. Set NODE_ID and NODE_ACCESS_TOKEN
+  2. Set MIN_HOP
   3. Set DATA_TESTING to true if testing with randomized sensor values
 */
 
 // Constants
-// #define NODE_ID 0xAAAAAAAA
-#define NODE_ID 0xBBBBBBBB
+#define NODE_ID 0xAAAAAAAA
+// #define NODE_ID 0xBBBBBBBB
 // #define NODE_ID 0xCCCCCCCC
 // #define NODE_ID 0xDDDDDDDD
 // #define NODE_ID 0xEEEEEEEE
 #define MOBILE_NODE false
 #define MIN_HOP 1
-// #define MAX_HOP 1
 #define MAX_HOP INT32_MAX
 #define WIFI_ONLY false
 
@@ -448,6 +447,7 @@ void loop() {
     }
   #endif
 
+  // Send sensor data
   if (millis() - lastCycle >= CYCLE_TIME) {
 
     lastCycle = millis(); // lastCycle must ALWAYS be reset every START of the cycle
@@ -504,15 +504,17 @@ void loop() {
             float hic = dht.computeHeatIndex(t, h, false);
           #endif
         #endif
-      #ifdef PMS7003_ON == true
-        last_pm1 = total_pm1 / pm_measurements;
-        last_pm2_5 = total_pm2_5 / pm_measurements;
-        last_pm10 = total_pm10 / pm_measurements;
-        total_pm1 = 0;
-        total_pm2_5 = 0;
-        total_pm10 = 0;
-        pm_measurements = 0;
-      #endif
+      
+        // Get average from PMS7003 readings
+        #ifdef PMS7003_ON == true
+          last_pm1 = total_pm1 / pm_measurements;
+          last_pm2_5 = total_pm2_5 / pm_measurements;
+          last_pm10 = total_pm10 / pm_measurements;
+          total_pm1 = 0;
+          total_pm2_5 = 0;
+          total_pm10 = 0;
+          pm_measurements = 0;
+        #endif
 
         Serial.printf("Lat: %f\n", last_lat);
         Serial.printf("Lng: %f\n", last_lng);
@@ -563,6 +565,7 @@ void loop() {
 
   }
 
+  // Send network data
   if (millis() - lastNetworkRecord >= NETWORK_RECORD_TIME) {
     
     lastNetworkRecord = millis();
@@ -613,12 +616,8 @@ void loop() {
 
     int data_len = appendDataToByteArray(data, 0, data_arr, data_arr_len, sizeof(Data_l));
     Packet* netrPkt = new Packet(NETR_TYP, LoRaSENSE.getId(), LoRaSENSE.getParentId(), LoRaSENSE.getId(), data, data_len);
-    // DEBUG
-      // Serial.printf("Adding network record packet %i to queue...\n", netrPkt->getPacketId());
-    //
     LoRaSENSE.pushPacketToQueue(netrPkt);
   }
 
   LoRaSENSE.loop();
-
 }
